@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Form, Modal } from 'react-bootstrap';
 
 export default function TrackerFilters({ show, onHide, filters, onApply, onReset }) {
   const [draft, setDraft] = useState(filters || { search: '', status: 'all' });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (show) setDraft(filters || { search: '', status: 'all' });
   }, [show, filters]);
 
@@ -18,7 +18,7 @@ export default function TrackerFilters({ show, onHide, filters, onApply, onReset
           <Form.Label>Search</Form.Label>
           <Form.Control
             size="sm"
-            placeholder="Device ID, UID, IMEI…"
+            placeholder="Vehicle, Device ID, UID, IMEI…"
             value={draft.search || ''}
             onChange={(e) => setDraft((d) => ({ ...d, search: e.target.value }))}
           />
@@ -31,10 +31,10 @@ export default function TrackerFilters({ show, onHide, filters, onApply, onReset
             onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}
           >
             <option value="all">All</option>
-            <option value="online">Online</option>
             <option value="moving">Moving</option>
             <option value="idle">Idle</option>
-            <option value="offline">Offline</option>
+            <option value="parked">Parked</option>
+            <option value="needsAttention">Needs Attention</option>
           </Form.Select>
         </Form.Group>
       </Modal.Body>

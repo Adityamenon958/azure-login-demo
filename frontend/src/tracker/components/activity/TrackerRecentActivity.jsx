@@ -3,6 +3,14 @@ import { Card, ListGroup, Spinner } from 'react-bootstrap';
 import { formatRelativeTime } from '../../utils/formatters';
 import TrackerStatusBadge from '../status/TrackerStatusBadge';
 
+/** Map activity event type → KPI status badge (ignition on = Idle, not Parked) */
+function statusFromEventType(type) {
+  if (type === 'moving') return 'moving';
+  if (type === 'idle' || type === 'ignition_on') return 'idle';
+  if (type === 'needsAttention' || type === 'offline') return 'needsAttention';
+  return 'parked';
+}
+
 export default function TrackerRecentActivity({ events = [], loading, title = 'Recent Activity' }) {
   return (
     <Card className="border-0 shadow-sm h-100">
@@ -27,7 +35,7 @@ export default function TrackerRecentActivity({ events = [], loading, title = 'R
                     <div className="text-muted">{ev.summary}</div>
                   </div>
                   <div className="text-end">
-                    <TrackerStatusBadge status={ev.type === 'moving' ? 'moving' : ev.type === 'idle' ? 'idle' : ev.type === 'offline' ? 'offline' : 'online'} />
+                    <TrackerStatusBadge status={statusFromEventType(ev.type)} />
                     <div className="text-muted mt-1" style={{ fontSize: '0.65rem' }}>
                       {formatRelativeTime(ev.timestamp)}
                     </div>

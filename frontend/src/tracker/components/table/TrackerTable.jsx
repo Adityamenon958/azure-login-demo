@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Spinner, Table } from 'react-bootstrap';
 import TrackerStatusBadge from '../status/TrackerStatusBadge';
 import { formatRelativeTime, formatSpeed } from '../../utils/formatters';
+import { normalizeStatus } from '../../constants/trackerStatus';
 
 export default function TrackerTable({
   devices = [],
@@ -28,7 +29,8 @@ export default function TrackerTable({
       );
     }
     if (statusFilter && statusFilter !== 'all') {
-      rows = rows.filter((d) => d.status === statusFilter);
+      const wanted = normalizeStatus(statusFilter);
+      rows = rows.filter((d) => normalizeStatus(d.status) === wanted);
     }
     rows.sort((a, b) => {
       const av = a[sortKey];

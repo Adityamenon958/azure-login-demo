@@ -5,12 +5,15 @@ const { deriveStatus } = require('../constants/trackerStatus');
 const { parseLimit } = require('../utils/timeRange');
 const { notFound } = require('../utils/apiResponse');
 
-function eventTypeFromMapped(mapped, status) {
-  if (status === 'offline') return 'offline';
+/**
+ * ✅ Prefer derived operational status (moving|idle|parked|needsAttention).
+ * Ignition alone must not become a separate type that the UI maps to Parked.
+ */
+function eventTypeFromMapped(_mapped, status) {
+  if (status === 'needsAttention') return 'needsAttention';
   if (status === 'moving') return 'moving';
-  if (mapped?.ignition === true) return 'ignition_on';
   if (status === 'idle') return 'idle';
-  return 'online';
+  return 'parked';
 }
 
 function summaryFor(type, speed) {
@@ -18,15 +21,13 @@ function summaryFor(type, speed) {
     case 'moving':
       return `Moving at ${Math.round(speed || 0)} km/h`;
     case 'idle':
-      return 'Idle (ignition on)';
-    case 'offline':
-      return 'Went offline / stale fix';
-    case 'ignition_on':
       return 'Ignition on';
-    case 'ignition_off':
+    case 'needsAttention':
+      return 'No recent signal';
+    case 'parked':
       return 'Ignition off';
     default:
-      return 'Online / parked';
+      return 'Parked / at rest';
   }
 }
 

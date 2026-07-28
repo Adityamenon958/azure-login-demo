@@ -50,10 +50,13 @@ async function listDevices({
   );
 
   if (status && String(status).trim() && String(status) !== 'all') {
-    const st = String(status).trim().toLowerCase();
-    const allowed = new Set(['online', 'moving', 'idle', 'offline']);
+    let st = String(status).trim();
+    // ✅ Legacy aliases from older UI
+    if (st === 'online') st = 'parked';
+    if (st === 'offline') st = 'needsAttention';
+    const allowed = new Set(['moving', 'idle', 'parked', 'needsAttention']);
     if (!allowed.has(st)) {
-      throw validationError('status must be online|moving|idle|offline|all', {
+      throw validationError('status must be moving|idle|parked|needsAttention|all', {
         field: 'status',
       });
     }

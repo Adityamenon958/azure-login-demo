@@ -82,11 +82,21 @@ function TrackerOverviewInner() {
 
   const lastUpdated = overview.lastUpdated || live.lastUpdated;
 
+  // ✅ KPI card click = toggle status filter (single-select)
+  const handleKpiStatusClick = (statusKey) => {
+    setFilters((prev) => ({
+      ...prev,
+      status: prev.status === statusKey ? 'all' : statusKey,
+    }));
+  };
+
   return (
     <Col xs={12} md={9} lg={10} xl={10} className={`${styles.page} p-3`}>
       <div className="mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
-          <h6 className="mb-0">Tracker Overview</h6>
+          <h6 className="mb-0" style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+            Tracker Overview
+          </h6>
           <div className="d-flex align-items-center gap-2 text-muted" style={{ fontSize: '0.75rem' }}>
             <span>
               Last updated:{' '}
@@ -119,7 +129,12 @@ function TrackerOverviewInner() {
         </Alert>
       )}
 
-      <TrackerSummaryCards kpis={overview.data?.kpis} loading={overview.loading && !overview.data} />
+      <TrackerSummaryCards
+        kpis={overview.data?.kpis}
+        loading={overview.loading && !overview.data}
+        selectedStatus={filters.status}
+        onStatusClick={handleKpiStatusClick}
+      />
 
       <Row className="g-2 mb-3">
         <Col xs={12} lg={7}>
@@ -138,6 +153,7 @@ function TrackerOverviewInner() {
             loading={live.loading && !live.data}
             selectedDeviceId={selectedDeviceId}
             onSelect={setSelectedDeviceId}
+            statusFilter={filters.status}
           />
         </Col>
       </Row>

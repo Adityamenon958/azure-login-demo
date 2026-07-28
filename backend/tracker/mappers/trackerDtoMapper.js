@@ -37,7 +37,7 @@ function toStateDto(device, avlDoc, now = new Date()) {
 
   if (!mapped) {
     return {
-      status: 'offline',
+      status: 'needsAttention',
       latitude: null,
       longitude: null,
       altitude: null,

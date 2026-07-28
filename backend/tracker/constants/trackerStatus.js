@@ -1,30 +1,31 @@
 /**
  * ✅ Tracker status derivation rules (server-side only).
+ * Operational buckets: moving | idle | parked | needsAttention
  */
 const OFFLINE_AFTER_MS = 15 * 60 * 1000; // 15 minutes
 const MOVING_SPEED_KMH = 3;
 
 const STATUSES = Object.freeze({
-  ONLINE: 'online',
   MOVING: 'moving',
   IDLE: 'idle',
-  OFFLINE: 'offline',
+  PARKED: 'parked',
+  NEEDS_ATTENTION: 'needsAttention',
 });
 
 /**
  * @param {{ lastSeenAt: Date|null, speed?: number, ignition?: boolean, movement?: boolean }} input
  * @param {Date} [now]
- * @returns {'online'|'moving'|'idle'|'offline'}
+ * @returns {'moving'|'idle'|'parked'|'needsAttention'}
  */
 function deriveStatus(input, now = new Date()) {
   const lastSeenAt = input.lastSeenAt ? new Date(input.lastSeenAt) : null;
   if (!lastSeenAt || Number.isNaN(lastSeenAt.getTime())) {
-    return STATUSES.OFFLINE;
+    return STATUSES.NEEDS_ATTENTION;
   }
 
   const ageMs = now.getTime() - lastSeenAt.getTime();
   if (ageMs > OFFLINE_AFTER_MS) {
-    return STATUSES.OFFLINE;
+    return STATUSES.NEEDS_ATTENTION;
   }
 
   const speed = Number(input.speed) || 0;
@@ -37,7 +38,7 @@ function deriveStatus(input, now = new Date()) {
     return STATUSES.IDLE;
   }
 
-  return STATUSES.ONLINE;
+  return STATUSES.PARKED;
 }
 
 module.exports = {

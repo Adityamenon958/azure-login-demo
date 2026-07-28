@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Spinner } from 'react-bootstrap';
-import { STATUS_COLORS } from '../../constants/trackerStatus';
+import { STATUS_COLORS, STATUS_LABELS, normalizeStatus } from '../../constants/trackerStatus';
 import { averageCenter, isValidCoordinates } from '../../utils/mapHelpers';
 import { formatRelativeTime, formatSpeed } from '../../utils/formatters';
 import TrackerStatusBadge from '../status/TrackerStatusBadge';
@@ -16,8 +16,11 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+const LEGEND_KEYS = ['moving', 'idle', 'parked', 'needsAttention'];
+
 function createStatusIcon(status) {
-  const color = STATUS_COLORS[status] || STATUS_COLORS.offline;
+  const key = normalizeStatus(status);
+  const color = STATUS_COLORS[key] || STATUS_COLORS.needsAttention;
   return L.divIcon({
     className: styles.marker,
     html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
@@ -65,13 +68,22 @@ export default function TrackerLiveMap({
   loading,
   selectedDeviceId,
   onSelect,
+  statusFilter = 'all',
 }) {
   const [fitted, setFitted] = useState(false);
-  const center = useMemo(() => averageCenter(locations), [locations]);
+
+  // ✅ Filter markers by KPI / filter status (same taxonomy as table)
+  const visibleLocations = useMemo(() => {
+    if (!statusFilter || statusFilter === 'all') return locations;
+    const wanted = normalizeStatus(statusFilter);
+    return locations.filter((loc) => normalizeStatus(loc.status) === wanted);
+  }, [locations, statusFilter]);
+
+  const center = useMemo(() => averageCenter(visibleLocations), [visibleLocations]);
 
   useEffect(() => {
-    if (!fitted && locations.length > 0) setFitted(true);
-  }, [locations, fitted]);
+    if (!fitted && visibleLocations.length > 0) setFitted(true);
+  }, [visibleLocations, fitted]);
 
   return (
     <div className={`${styles.wrap} bg-white shadow-sm rounded overflow-hidden`}>
@@ -92,8 +104,8 @@ export default function TrackerLiveMap({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FitOnce center={center} shouldFit={!fitted && locations.length > 0} />
-          {locations.map((loc) => (
+          <FitOnce center={center} shouldFit={!fitted && visibleLocations.length > 0} />
+          {visibleLocations.map((loc) => (
             <TrackerMarker
               key={loc.deviceId}
               loc={loc}
@@ -102,6 +114,23 @@ export default function TrackerLiveMap({
             />
           ))}
         </MapContainer>
+      </div>
+      {/* ✅ Legend matches the four KPI accents */}
+      <div className="d-flex flex-wrap gap-2 px-2 py-1 border-top" style={{ fontSize: '0.65rem' }}>
+        {LEGEND_KEYS.map((key) => (
+          <span key={key} className="d-inline-flex align-items-center gap-1 text-muted">
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: STATUS_COLORS[key],
+                display: 'inline-block',
+              }}
+            />
+            {STATUS_LABELS[key]}
+          </span>
+        ))}
       </div>
     </div>
   );

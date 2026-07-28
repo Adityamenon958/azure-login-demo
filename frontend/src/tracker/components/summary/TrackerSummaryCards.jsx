@@ -1,37 +1,93 @@
 import React from 'react';
-import { Card, Col, Row, Spinner } from 'react-bootstrap';
-import { Radio, Navigation, PauseCircle, WifiOff } from 'lucide-react';
+import { Col, Row, Spinner } from 'react-bootstrap';
+import { Navigation, Timer, ParkingSquare, TriangleAlert } from 'lucide-react';
+import {
+  STATUS_COLORS,
+  STATUS_CHIP_BG,
+  STATUS_LABELS,
+  STATUS_SUBTITLES,
+} from '../../constants/trackerStatus';
+import styles from './TrackerSummaryCards.module.css';
 
+// ✅ Locked V1 KPI set — mutually exclusive operational buckets
 const CARD_DEFS = [
-  { key: 'online', label: 'Online', icon: Radio, gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-  { key: 'moving', label: 'Moving', icon: Navigation, gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
-  { key: 'idle', label: 'Idle', icon: PauseCircle, gradient: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' },
-  { key: 'offline', label: 'Offline', icon: WifiOff, gradient: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+  { key: 'moving', icon: Navigation },
+  { key: 'idle', icon: Timer },
+  { key: 'parked', icon: ParkingSquare },
+  { key: 'needsAttention', icon: TriangleAlert },
 ];
 
-export default function TrackerSummaryCards({ kpis, loading }) {
-  const totals = kpis || { online: 0, moving: 0, idle: 0, offline: 0, total: 0 };
+/**
+ * Enterprise KPI cards. Click toggles overview status filter (single-select).
+ * @param {{ kpis?: object, loading?: boolean, selectedStatus?: string, onStatusClick?: (key: string) => void }} props
+ */
+export default function TrackerSummaryCards({
+  kpis,
+  loading,
+  selectedStatus = 'all',
+  onStatusClick,
+}) {
+  const totals = kpis || {
+    moving: 0,
+    idle: 0,
+    parked: 0,
+    needsAttention: 0,
+    total: 0,
+  };
 
   return (
-    <Row className="mb-3 g-2">
+    <Row className="mb-3 g-3">
       {CARD_DEFS.map((card) => {
         const Icon = card.icon;
+        const accent = STATUS_COLORS[card.key];
+        const chipBg = STATUS_CHIP_BG[card.key];
+        const isSelected = selectedStatus === card.key;
+        const count = totals[card.key] ?? 0;
+
         return (
           <Col xs={6} md={3} key={card.key}>
-            <Card className="border-0 shadow-sm h-100 text-white" style={{ background: card.gradient, minHeight: 100 }}>
-              <Card.Body className="p-3 d-flex justify-content-between align-items-start">
+            <div
+              className={`${styles.card} ${isSelected ? styles.cardSelected : ''}`}
+              style={{
+                borderLeftColor: accent,
+                ...(isSelected
+                  ? {
+                      borderColor: accent,
+                      backgroundColor: `${accent}0F`, // ~6% opacity hex
+                    }
+                  : {}),
+                color: accent, // for focus-visible outline
+              }}
+              role="button"
+              tabIndex={0}
+              aria-pressed={isSelected}
+              aria-label={`Filter by ${STATUS_LABELS[card.key]}`}
+              onClick={() => onStatusClick?.(card.key)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onStatusClick?.(card.key);
+                }
+              }}
+            >
+              <div className={styles.body}>
                 <div>
-                  <h3 className="mb-1 fw-bold" style={{ fontSize: '1.6rem' }}>
-                    {loading ? <Spinner animation="border" size="sm" /> : totals[card.key] ?? 0}
+                  <h3 className={styles.value}>
+                    {loading ? <Spinner animation="border" size="sm" /> : count}
                   </h3>
-                  <p className="mb-0" style={{ fontSize: '0.75rem', opacity: 0.9 }}>
-                    {card.label}
-                    {totals.total != null ? ` / ${totals.total}` : ''}
-                  </p>
+                  <p className={styles.label}>{STATUS_LABELS[card.key]}</p>
+                  <p className={styles.subtitle}>{STATUS_SUBTITLES[card.key]}</p>
+                  {totals.total != null && (
+                    <p className={styles.fraction}>
+                      of {totals.total}
+                    </p>
+                  )}
                 </div>
-                <Icon size={36} style={{ opacity: 0.85 }} />
-              </Card.Body>
-            </Card>
+                <div className={styles.chip} style={{ backgroundColor: chipBg, color: accent }}>
+                  <Icon size={18} strokeWidth={1.75} aria-hidden />
+                </div>
+              </div>
+            </div>
           </Col>
         );
       })}

@@ -1,9 +1,13 @@
 import React from 'react';
+import { STATUS_LABELS, normalizeStatus } from '../../constants/trackerStatus';
 
 export default function TrackerFilterChips({ filters, onClick }) {
   const chips = [];
   if (filters?.search) chips.push(`Search: ${filters.search}`);
-  if (filters?.status && filters.status !== 'all') chips.push(`Status: ${filters.status}`);
+  if (filters?.status && filters.status !== 'all') {
+    const key = normalizeStatus(filters.status);
+    chips.push(`Status: ${STATUS_LABELS[key] || filters.status}`);
+  }
 
   if (chips.length === 0) return null;
 

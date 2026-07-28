@@ -28,17 +28,17 @@ async function getOverview({ role, companyName, companyNameFilter }) {
 
   const kpis = {
     total: list.length,
-    online: 0,
     moving: 0,
     idle: 0,
-    offline: 0,
+    parked: 0,
+    needsAttention: 0,
   };
 
   for (const item of list) {
     if (item.status === 'moving') kpis.moving += 1;
     else if (item.status === 'idle') kpis.idle += 1;
-    else if (item.status === 'offline') kpis.offline += 1;
-    else if (item.status === 'online') kpis.online += 1;
+    else if (item.status === 'parked') kpis.parked += 1;
+    else if (item.status === 'needsAttention') kpis.needsAttention += 1;
   }
 
   return { kpis, devices: list };

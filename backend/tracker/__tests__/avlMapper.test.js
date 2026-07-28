@@ -24,7 +24,7 @@ function testStatus() {
   const now = new Date();
   assert.strictEqual(
     deriveStatus({ lastSeenAt: null, speed: 0 }, now),
-    'offline'
+    'needsAttention'
   );
   assert.strictEqual(
     deriveStatus({ lastSeenAt: now, speed: 40, movement: false }, now),
@@ -33,6 +33,10 @@ function testStatus() {
   assert.strictEqual(
     deriveStatus({ lastSeenAt: now, speed: 0, ignition: true }, now),
     'idle'
+  );
+  assert.strictEqual(
+    deriveStatus({ lastSeenAt: now, speed: 0, ignition: false }, now),
+    'parked'
   );
 }
 
@@ -51,7 +55,12 @@ function testDto() {
       ioElements: [{ id: 239, value: 1, valueSize: 1 }],
     }
   );
-  assert.ok(state.status === 'moving' || state.status === 'idle' || state.status === 'online');
+  assert.ok(
+    state.status === 'moving' ||
+      state.status === 'idle' ||
+      state.status === 'parked' ||
+      state.status === 'needsAttention'
+  );
   assert.strictEqual(state.ignition, true);
   assert.ok(!('ioElements' in state));
 }

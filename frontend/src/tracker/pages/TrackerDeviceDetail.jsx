@@ -68,7 +68,7 @@ export default function TrackerDeviceDetail() {
         uid: detail.data?.device?.uid,
         latitude: latest.latitude,
         longitude: latest.longitude,
-        status: detail.data?.state?.status || 'online',
+        status: detail.data?.state?.status || 'parked',
         speed: latest.speed,
         heading: latest.heading,
         lastSeenAt: latest.timestamp,
