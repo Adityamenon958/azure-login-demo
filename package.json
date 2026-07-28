@@ -5,9 +5,6 @@
     "scripts": {
         "start": "node server.js",
         "start:api": "node server.js",
-        "start:tracker": "node tracker/index.js",
-        "test:tracker-protocol": "node tracker/scripts/verify-protocol.js",
-        "test:tracker-e2e": "node tracker/scripts/self-test.js",
         "build": "npm install --prefix frontend && npm run build --prefix frontend"
     },
     "dependencies": {

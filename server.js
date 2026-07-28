@@ -41,6 +41,10 @@ const ElevatorEvent = require("./backend/models/ElevatorEvent");
 const ElevatorZone = require("./backend/models/ElevatorZone");
 const EnergyMeterLog = require("./backend/models/EnergyMeterLog");
 const EnergyMeterParameterMap = require("./backend/models/EnergyMeterParameterMap");
+const {
+  validateImeiForDeviceType,
+  isImeiDuplicateKeyError,
+} = require("./backend/utils/deviceImei");
 // ✅ Temporary Live Device Data Monitor — remove after demo
 const demoLiveDataRouter = require('./backend/routes/demoLiveData');
 const {
@@ -1314,10 +1318,22 @@ app.get('/api/devices/count/by-company', async (req, res) => {
 app.post('/api/devices', async (req, res) => {
   try {
     const { companyName, uid, deviceId, deviceType, elevatorZoneId,
-      siteName, plantName, machineName, location, phaseType } = req.body;
+      siteName, plantName, machineName, location, phaseType, imei } = req.body;
 
     if (!companyName || !uid || !deviceId || !deviceType) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // ✅ GPS Tracker: IMEI required + format; other types: IMEI not required
+    const imeiCheck = validateImeiForDeviceType(deviceType, imei);
+    if (!imeiCheck.ok) {
+      return res.status(400).json({ message: imeiCheck.message });
+    }
+    if (imeiCheck.imei) {
+      const existingImei = await Device.findOne({ imei: imeiCheck.imei }).lean();
+      if (existingImei) {
+        return res.status(409).json({ message: `IMEI "${imeiCheck.imei}" is already registered to another device` });
+      }
     }
 
     if (String(deviceType).toLowerCase() === 'energymeter') {
@@ -1355,12 +1371,16 @@ app.post('/api/devices', async (req, res) => {
       ...(machineName !== undefined ? { machineName } : {}),
       ...(location !== undefined ? { location } : {}),
       ...(phaseType !== undefined ? { phaseType } : {}),
+      ...(imeiCheck.imei ? { imei: imeiCheck.imei } : {}),
     });
 
     await newDevice.save();
     res.status(201).json({ message: 'Device added successfully' });
   } catch (error) {
     console.error('Error adding device:', error);
+    if (isImeiDuplicateKeyError(error)) {
+      return res.status(409).json({ message: 'IMEI is already registered to another device' });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -1394,7 +1414,7 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
     }
 
     const { companyName, deviceId, deviceType, elevatorZoneId,
-      siteName, plantName, machineName, location, phaseType } = req.body || {};
+      siteName, plantName, machineName, location, phaseType, imei } = req.body || {};
     const update = {};
     // superadmin can change companyName
     if (companyName !== undefined && actorRole === 'superadmin') update.companyName = companyName;
@@ -1412,6 +1432,31 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
         : targetDevice.companyName;
     const effectiveType =
       deviceType !== undefined ? deviceType : targetDevice.deviceType;
+
+    // ✅ GPS Tracker IMEI rules (required only for gpsTracker)
+    const imeiSource =
+      imei !== undefined
+        ? imei
+        : (String(effectiveType).toLowerCase() === 'gpstracker' ? targetDevice.imei : undefined);
+    const imeiCheck = validateImeiForDeviceType(effectiveType, imeiSource);
+    if (!imeiCheck.ok) {
+      return res.status(400).json({ message: imeiCheck.message });
+    }
+    if (imeiCheck.clearImei) {
+      // Remove IMEI when device is not (or no longer) a GPS Tracker
+      await Device.updateOne({ _id: targetDevice._id }, { $unset: { imei: 1 } });
+    } else if (imeiCheck.imei) {
+      const existingImei = await Device.findOne({
+        imei: imeiCheck.imei,
+        _id: { $ne: targetDevice._id },
+      }).lean();
+      if (existingImei) {
+        return res.status(409).json({
+          message: `IMEI "${imeiCheck.imei}" is already registered to another device`,
+        });
+      }
+      update.imei = imeiCheck.imei;
+    }
 
     const nextDeviceId = deviceId !== undefined ? deviceId : targetDevice.deviceId;
     if (String(effectiveType).toLowerCase() === 'energymeter') {
@@ -1441,13 +1486,16 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    const updated = await Device.findByIdAndUpdate(req.params.id, update, { new: true }).populate(
-      'elevatorZoneId',
-      'name companyName'
-    );
+    const updated = await Device.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    }).populate('elevatorZoneId', 'name companyName');
     return res.json({ success: true, message: 'Device updated successfully', device: updated });
   } catch (err) {
     console.error('Update device error:', err.message);
+    if (isImeiDuplicateKeyError(err)) {
+      return res.status(409).json({ message: 'IMEI is already registered to another device' });
+    }
     return res.status(500).json({ message: 'Server error' });
   }
 });

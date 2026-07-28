@@ -11,7 +11,22 @@ const DEVICE_TYPES = [
   { value: 'crane', label: 'Crane' },
   { value: 'elevator', label: 'Elevator' },
   { value: 'energyMeter', label: 'Energy Meter' },
+  { value: 'gpsTracker', label: 'GPS Tracker' },
 ];
+
+const IMEI_REGEX = /^\d{15,16}$/;
+
+function isGpsTrackerType(type) {
+  return String(type || '').toLowerCase() === 'gpstracker';
+}
+
+function validateImeiInput(value) {
+  const imei = String(value || '').trim();
+  if (!imei) return { ok: false, message: 'IMEI is required for GPS Tracker devices' };
+  if (!/^\d+$/.test(imei)) return { ok: false, message: 'IMEI must contain digits only' };
+  if (!IMEI_REGEX.test(imei)) return { ok: false, message: 'IMEI must be 15 or 16 digits' };
+  return { ok: true, imei };
+}
 
 export default function AddDevice() {
   const navigate = useNavigate();
@@ -25,6 +40,8 @@ export default function AddDevice() {
   const [deviceId, setDeviceId] = useState('');
   const [deviceType, setDeviceType] = useState('');
   const [uid, setUid] = useState('');
+  const [imei, setImei] = useState('');
+  const [imeiError, setImeiError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
@@ -236,6 +253,16 @@ export default function AddDevice() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setImeiError('');
+
+    if (isGpsTrackerType(deviceType)) {
+      const check = validateImeiInput(imei);
+      if (!check.ok) {
+        setImeiError(check.message);
+        return;
+      }
+    }
+
     if (!isEditMode) {
       const isDuplicate = devices.some(device => device.uid === uid);
       if (isDuplicate) {
@@ -254,6 +281,9 @@ export default function AddDevice() {
         formData.location = location;
         formData.phaseType = phaseType;
       }
+      if (isGpsTrackerType(deviceType)) {
+        formData.imei = String(imei).trim();
+      }
 
       try {
         const response = await axios.post('/api/devices', formData, { withCredentials: true });
@@ -268,10 +298,12 @@ export default function AddDevice() {
         setMachineName('');
         setLocation('');
         setPhaseType('single');
+        setImei('');
+        setImeiError('');
         setShowModal(false);
       } catch (error) {
         console.error('Error submitting form:', error);
-        alert('Failed to add device');
+        alert(error.response?.data?.message || 'Failed to add device');
       }
     } else {
       // ✅ Edit device flow
@@ -295,6 +327,12 @@ export default function AddDevice() {
           payload.location = location;
           payload.phaseType = phaseType;
         }
+        if (isGpsTrackerType(deviceType)) {
+          payload.imei = String(imei).trim();
+        } else {
+          // Clear IMEI when switching away from GPS Tracker
+          payload.imei = '';
+        }
         await axios.put(`/api/devices/${editingDevice._id}`, payload, { withCredentials: true });
         alert('Device updated successfully!');
         setShowModal(false);
@@ -311,10 +349,12 @@ export default function AddDevice() {
         setMachineName('');
         setLocation('');
         setPhaseType('single');
+        setImei('');
+        setImeiError('');
         fetchDevices(role === 'superadmin' ? null : authCompanyName);
       } catch (error) {
         console.error('Error updating device:', error);
-        alert('Failed to update device');
+        alert(error.response?.data?.message || 'Failed to update device');
       }
     }
   };
@@ -344,6 +384,8 @@ export default function AddDevice() {
     setMachineName(dev.machineName || '');
     setLocation(dev.location || '');
     setPhaseType(dev.phaseType || 'single');
+    setImei(dev.imei || '');
+    setImeiError('');
     setShowModal(true);
   };
 
@@ -385,6 +427,8 @@ export default function AddDevice() {
     setMachineName('');
     setLocation('');
     setPhaseType('single');
+    setImei('');
+    setImeiError('');
   };
 
   const filteredDevices = devices
@@ -442,7 +486,14 @@ export default function AddDevice() {
               <Form.Label className="custom_label1">Device Type</Form.Label>
               <Form.Select
                 value={deviceType}
-                onChange={(e) => setDeviceType(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDeviceType(next);
+                  if (!isGpsTrackerType(next)) {
+                    setImei('');
+                    setImeiError('');
+                  }
+                }}
                 required
                 className="custom_input1"
               >
@@ -457,6 +508,33 @@ export default function AddDevice() {
                   )}
               </Form.Select>
             </Form.Group>
+            {isGpsTrackerType(deviceType) && (
+              <Form.Group className="my-1">
+                <Form.Label className="custom_label1">IMEI *</Form.Label>
+                <Form.Control
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{15,16}"
+                  maxLength={16}
+                  value={imei}
+                  onChange={(e) => {
+                    // ✅ Digits only while typing
+                    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 16);
+                    setImei(digitsOnly);
+                    if (imeiError) setImeiError('');
+                  }}
+                  required
+                  className="custom_input1"
+                  placeholder="15 or 16 digit IMEI"
+                  isInvalid={Boolean(imeiError)}
+                />
+                {imeiError ? (
+                  <Form.Control.Feedback type="invalid">{imeiError}</Form.Control.Feedback>
+                ) : (
+                  <Form.Text className="text-muted">Required for Teltonika GPS trackers (15–16 digits).</Form.Text>
+                )}
+              </Form.Group>
+            )}
             {String(deviceType).toLowerCase() === 'elevator' && canManageZones && (
               <Form.Group className="my-1">
                 <Form.Label className="custom_label1">Elevator zone (optional)</Form.Label>
@@ -616,6 +694,7 @@ export default function AddDevice() {
               <option value="uid">UID</option>
               <option value="deviceId">Device ID</option>
               <option value="deviceType">Type</option>
+              <option value="imei">IMEI</option>
               <option value="companyName">Company</option>
               <option value="createdAt">Date</option>
             </Form.Select>
@@ -642,6 +721,7 @@ export default function AddDevice() {
                   <th>UID</th>
                   <th>Device ID</th>
                   <th>Type</th>
+                  <th>IMEI</th>
                   <th>Company</th>
                   <th>Zone</th>
                   {(role === 'admin' || role === 'superadmin') && (
@@ -652,7 +732,7 @@ export default function AddDevice() {
               <tbody>
                 {filteredDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={role === 'admin' || role === 'superadmin' ? 7 : 6} className="text-center">No matching devices</td>
+                    <td colSpan={role === 'admin' || role === 'superadmin' ? 8 : 7} className="text-center">No matching devices</td>
                   </tr>
                 ) : (
                   filteredDevices.map((dev, index) => (
@@ -661,6 +741,9 @@ export default function AddDevice() {
                       <td>{dev.uid}</td>
                       <td>{dev.deviceId}</td>
                       <td>{dev.deviceType}</td>
+                      <td>
+                        {isGpsTrackerType(dev.deviceType) && dev.imei ? dev.imei : '—'}
+                      </td>
                       <td>{dev.companyName}</td>
                       <td>
                         {String(dev.deviceType || '').toLowerCase() === 'elevator' && dev.elevatorZoneId?.name
