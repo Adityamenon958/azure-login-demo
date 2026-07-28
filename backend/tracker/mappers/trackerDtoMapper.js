@@ -12,6 +12,12 @@ function maskImei(imei) {
   return `${'*'.repeat(Math.max(0, trimmed.length - 4))}${trimmed.slice(-4)}`;
 }
 
+/** Primary human label: displayName with deviceId fallback */
+function primaryLabel(device) {
+  const name = device?.displayName && String(device.displayName).trim();
+  return name || device?.deviceId || '';
+}
+
 /**
  * Build public state DTO from device + latest AVL (mapped).
  * Never includes ioElements or raw AVL IDs.
@@ -65,6 +71,8 @@ function toOverviewDeviceDto(device, avlDoc, now = new Date()) {
   return {
     deviceId: device.deviceId,
     uid: device.uid,
+    displayName: primaryLabel(device),
+    deviceModel: device.deviceModel || null,
     imeiMasked: maskImei(device.imei || avlDoc?.imei),
     status: state.status,
     speed: state.speed ?? 0,
@@ -79,6 +87,8 @@ function toLiveLocationDto(device, avlDoc, now = new Date()) {
   return {
     deviceId: device.deviceId,
     uid: device.uid,
+    displayName: primaryLabel(device),
+    deviceModel: device.deviceModel || null,
     latitude: state.latitude ?? 0,
     longitude: state.longitude ?? 0,
     status: state.status,
@@ -93,6 +103,8 @@ function toDeviceListItemDto(device, avlDoc, now = new Date()) {
   return {
     deviceId: device.deviceId,
     uid: device.uid,
+    displayName: primaryLabel(device),
+    deviceModel: device.deviceModel || null,
     companyName: device.companyName,
     imeiMasked: maskImei(device.imei || avlDoc?.imei),
     status: state.status,
@@ -108,6 +120,8 @@ function toDeviceDetailDto(device, avlDoc, now = new Date()) {
     device: {
       deviceId: device.deviceId,
       uid: device.uid,
+      displayName: primaryLabel(device),
+      deviceModel: device.deviceModel || null,
       companyName: device.companyName,
       imeiMasked: maskImei(device.imei),
       deviceType: device.deviceType,
@@ -132,6 +146,7 @@ function toHistoryPointDto(avlDoc) {
 
 module.exports = {
   maskImei,
+  primaryLabel,
   toStateDto,
   toOverviewDeviceDto,
   toLiveLocationDto,

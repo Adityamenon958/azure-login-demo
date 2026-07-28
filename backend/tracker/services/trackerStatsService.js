@@ -80,6 +80,8 @@ async function getActivity({
     events.push({
       deviceId: device.deviceId,
       uid: device.uid,
+      displayName: (device.displayName && String(device.displayName).trim()) || device.deviceId,
+      deviceModel: device.deviceModel || null,
       timestamp: mapped?.timestamp
         ? new Date(mapped.timestamp).toISOString()
         : null,

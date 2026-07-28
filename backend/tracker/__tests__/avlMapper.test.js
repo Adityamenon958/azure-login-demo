@@ -39,7 +39,7 @@ function testStatus() {
 function testDto() {
   assert.strictEqual(maskImei('123456789012345'), '***********2345');
   const state = toStateDto(
-    { deviceId: 'T1', uid: 'U1', imei: '123456789012345' },
+    { deviceId: 'T1', uid: 'U1', imei: '123456789012345', displayName: 'Bike-01', deviceModel: 'FMB920' },
     {
       timestamp: new Date(),
       latitude: 18.5,

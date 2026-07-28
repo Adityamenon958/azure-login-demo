@@ -31,6 +31,8 @@ async function listDevices({
       (d) =>
         String(d.deviceId || '').toLowerCase().includes(q) ||
         String(d.uid || '').toLowerCase().includes(q) ||
+        String(d.displayName || '').toLowerCase().includes(q) ||
+        String(d.deviceModel || '').toLowerCase().includes(q) ||
         String(d.imei || '').toLowerCase().includes(q)
     );
   }

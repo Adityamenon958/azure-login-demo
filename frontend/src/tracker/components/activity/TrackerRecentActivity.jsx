@@ -23,7 +23,7 @@ export default function TrackerRecentActivity({ events = [], loading, title = 'R
               <ListGroup.Item key={`${ev.deviceId}-${ev.timestamp}-${idx}`} className="py-2 px-3">
                 <div className="d-flex justify-content-between align-items-start gap-2">
                   <div style={{ fontSize: '0.75rem' }}>
-                    <div className="fw-semibold">{ev.deviceId}</div>
+                    <div className="fw-semibold">{ev.displayName || ev.deviceId}</div>
                     <div className="text-muted">{ev.summary}</div>
                   </div>
                   <div className="text-end">

@@ -39,7 +39,11 @@ export default function TrackerDetailsPanel({ deviceId, detail, loading }) {
           <>
             <div className="d-flex justify-content-between align-items-start mb-2">
               <div>
-                <div className="fw-bold">{device?.deviceId || deviceId}</div>
+                <div className="fw-bold">{device?.displayName || device?.deviceId || deviceId}</div>
+                <div className="text-muted">
+                  {device?.deviceModel ? `${device.deviceModel} · ` : ''}
+                  {device?.deviceId || deviceId}
+                </div>
                 <div className="text-muted">{device?.uid}</div>
                 <div className="text-muted">IMEI {device?.imeiMasked || '—'}</div>
               </div>

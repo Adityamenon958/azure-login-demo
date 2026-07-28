@@ -47,7 +47,10 @@ const TrackerMarker = memo(function TrackerMarker({ loc, selected, onSelect }) {
     >
       <Popup>
         <div style={{ minWidth: 140, fontSize: '0.75rem' }}>
-          <div className="fw-bold mb-1">{loc.deviceId}</div>
+          <div className="fw-bold mb-1">{loc.displayName || loc.deviceId}</div>
+          {loc.deviceModel && (
+            <div className="text-muted mb-1">{loc.deviceModel}</div>
+          )}
           <TrackerStatusBadge status={loc.status} />
           <div className="mt-1">{formatSpeed(loc.speed)}</div>
           <div className="text-muted">{formatRelativeTime(loc.lastSeenAt)}</div>

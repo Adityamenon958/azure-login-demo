@@ -165,7 +165,7 @@ function TrackerOverviewInner() {
           onClick={() => setChartsExpanded((v) => !v)}
         >
           <h6 className="mb-0" style={{ fontSize: '0.8rem' }}>
-            Charts {selectedDeviceId ? `(${selectedDeviceId})` : ''}
+            Charts {selectedDeviceId ? `(${detail.data?.device?.displayName || selectedDeviceId})` : ''}
           </h6>
           <span className="text-muted" style={{ fontSize: '0.75rem' }}>
             {chartsExpanded ? '▲ Collapse' : '▼ Expand (loads on demand)'}

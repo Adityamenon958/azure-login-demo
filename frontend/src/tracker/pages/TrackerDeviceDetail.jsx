@@ -83,7 +83,7 @@ export default function TrackerDeviceDetail() {
           <Button variant="link" className="p-0 mb-1" onClick={() => navigate('/dashboard/tracker-overview')}>
             ← Back to Tracker Overview
           </Button>
-          <h6 className="mb-0">Tracker · {decodedId}</h6>
+          <h6 className="mb-0">Tracker · {detail.data?.device?.displayName || decodedId}</h6>
         </div>
       </div>
 

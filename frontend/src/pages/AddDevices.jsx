@@ -5,27 +5,37 @@ import { Col, Row, Form, Button, Table, Spinner, Modal } from 'react-bootstrap';
 import { Edit, Trash2 } from 'lucide-react';
 import styles from './MainContent.module.css';
 import './MainContent.css';
-
-const DEVICE_TYPES = [
-  { value: 'levelSensor', label: 'Level Sensor' },
-  { value: 'crane', label: 'Crane' },
-  { value: 'elevator', label: 'Elevator' },
-  { value: 'energyMeter', label: 'Energy Meter' },
-  { value: 'gpsTracker', label: 'GPS Tracker' },
-];
+import {
+  DEVICE_TYPE_OPTIONS,
+  getModelsForCategory,
+  isGpsTrackerType,
+  categoryLabel,
+} from '../constants/deviceCatalog';
 
 const IMEI_REGEX = /^\d{15,16}$/;
 
-function isGpsTrackerType(type) {
-  return String(type || '').toLowerCase() === 'gpstracker';
-}
-
 function validateImeiInput(value) {
   const imei = String(value || '').trim();
-  if (!imei) return { ok: false, message: 'IMEI is required for GPS Tracker devices' };
+  if (!imei) return { ok: false, message: 'IMEI is required for Fleet Tracker devices' };
   if (!/^\d+$/.test(imei)) return { ok: false, message: 'IMEI must contain digits only' };
   if (!IMEI_REGEX.test(imei)) return { ok: false, message: 'IMEI must be 15 or 16 digits' };
   return { ok: true, imei };
+}
+
+function validateDisplayNameInput(value) {
+  const name = String(value || '').trim();
+  if (!name) return { ok: false, message: 'Vehicle Name is required for Fleet Tracker devices' };
+  if (name.length < 2 || name.length > 80) {
+    return { ok: false, message: 'Vehicle Name must be between 2 and 80 characters' };
+  }
+  return { ok: true, displayName: name };
+}
+
+function maskImeiForTable(imei) {
+  if (!imei || typeof imei !== 'string') return '—';
+  const t = imei.trim();
+  if (t.length <= 4) return '*'.repeat(t.length);
+  return `${'*'.repeat(t.length - 4)}${t.slice(-4)}`;
 }
 
 export default function AddDevice() {
@@ -42,6 +52,9 @@ export default function AddDevice() {
   const [uid, setUid] = useState('');
   const [imei, setImei] = useState('');
   const [imeiError, setImeiError] = useState('');
+  const [deviceModel, setDeviceModel] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [displayNameError, setDisplayNameError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
@@ -137,12 +150,12 @@ export default function AddDevice() {
   };
 
   useEffect(() => {
-    // ✅ Auto-generate UID only in add mode
-    if (!isEditMode && companyName && deviceId) {
-      const prefix = companyName.split(" ").map(word => word[0]).join('').toUpperCase();
+    // ✅ Auto-generate UID from company + Device ID (add and edit modes)
+    if (companyName && deviceId) {
+      const prefix = companyName.split(' ').map((word) => word[0]).join('').toUpperCase();
       setUid(`${prefix}-${deviceId}`);
     }
-  }, [companyName, deviceId, isEditMode]);
+  }, [companyName, deviceId]);
 
   // ✅ Fetch devices when component loads and when role/companyName changes
   useEffect(() => {
@@ -254,8 +267,19 @@ export default function AddDevice() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setImeiError('');
+    setDisplayNameError('');
 
     if (isGpsTrackerType(deviceType)) {
+      const models = getModelsForCategory(deviceType);
+      if (!deviceModel || !models.includes(deviceModel)) {
+        alert(`Device Model is required. Choose one of: ${models.join(', ')}`);
+        return;
+      }
+      const nameCheck = validateDisplayNameInput(displayName);
+      if (!nameCheck.ok) {
+        setDisplayNameError(nameCheck.message);
+        return;
+      }
       const check = validateImeiInput(imei);
       if (!check.ok) {
         setImeiError(check.message);
@@ -283,6 +307,11 @@ export default function AddDevice() {
       }
       if (isGpsTrackerType(deviceType)) {
         formData.imei = String(imei).trim();
+        formData.deviceModel = deviceModel;
+        formData.displayName = String(displayName).trim();
+      } else if (String(displayName).trim()) {
+        // ✅ Preserve optional displayName for other categories if user entered one
+        formData.displayName = String(displayName).trim();
       }
 
       try {
@@ -300,6 +329,9 @@ export default function AddDevice() {
         setPhaseType('single');
         setImei('');
         setImeiError('');
+        setDeviceModel('');
+        setDisplayName('');
+        setDisplayNameError('');
         setShowModal(false);
       } catch (error) {
         console.error('Error submitting form:', error);
@@ -313,7 +345,8 @@ export default function AddDevice() {
       }
       try {
         // Backend supports superadmin changing companyName; admin cannot
-        const payload = { deviceId, deviceType };
+        // ✅ Include uid so Device ID changes persist the linked UID
+        const payload = { deviceId, deviceType, uid };
         if (role === 'superadmin' && companyName) payload.companyName = companyName;
         if (String(deviceType).toLowerCase() === 'elevator') {
           payload.elevatorZoneId = elevatorZoneId || null;
@@ -329,9 +362,15 @@ export default function AddDevice() {
         }
         if (isGpsTrackerType(deviceType)) {
           payload.imei = String(imei).trim();
+          payload.deviceModel = deviceModel;
+          payload.displayName = String(displayName).trim();
         } else {
-          // Clear IMEI when switching away from GPS Tracker
+          // Clear IMEI + model when switching away from Fleet Tracker; preserve displayName
           payload.imei = '';
+          payload.deviceModel = '';
+          if (String(displayName).trim()) {
+            payload.displayName = String(displayName).trim();
+          }
         }
         await axios.put(`/api/devices/${editingDevice._id}`, payload, { withCredentials: true });
         alert('Device updated successfully!');
@@ -351,6 +390,9 @@ export default function AddDevice() {
         setPhaseType('single');
         setImei('');
         setImeiError('');
+        setDeviceModel('');
+        setDisplayName('');
+        setDisplayNameError('');
         fetchDevices(role === 'superadmin' ? null : authCompanyName);
       } catch (error) {
         console.error('Error updating device:', error);
@@ -386,6 +428,9 @@ export default function AddDevice() {
     setPhaseType(dev.phaseType || 'single');
     setImei(dev.imei || '');
     setImeiError('');
+    setDeviceModel(dev.deviceModel || '');
+    setDisplayName(dev.displayName || '');
+    setDisplayNameError('');
     setShowModal(true);
   };
 
@@ -429,6 +474,9 @@ export default function AddDevice() {
     setPhaseType('single');
     setImei('');
     setImeiError('');
+    setDeviceModel('');
+    setDisplayName('');
+    setDisplayNameError('');
   };
 
   const filteredDevices = devices
@@ -475,38 +523,84 @@ export default function AddDevice() {
               />
             </Form.Group>
             <Form.Group className="my-1">
-              <Form.Label className="custom_label1">UID</Form.Label>
-              <Form.Control className="custom_input1" type="text" value={uid} disabled />
-            </Form.Group>
-            <Form.Group className="my-1">
-              <Form.Label className="custom_label1">Device ID</Form.Label>
-              <Form.Control type="text" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} required className="custom_input1" />
-            </Form.Group>
-            <Form.Group className="my-1">
-              <Form.Label className="custom_label1">Device Type</Form.Label>
+              <Form.Label className="custom_label1">Device Category</Form.Label>
               <Form.Select
                 value={deviceType}
                 onChange={(e) => {
                   const next = e.target.value;
                   setDeviceType(next);
+                  // ✅ Clear model + IMEI when leaving Fleet Tracker; preserve displayName
                   if (!isGpsTrackerType(next)) {
                     setImei('');
                     setImeiError('');
+                    setDeviceModel('');
+                  } else {
+                    const models = getModelsForCategory(next);
+                    if (deviceModel && !models.includes(deviceModel)) {
+                      setDeviceModel('');
+                    }
                   }
                 }}
                 required
                 className="custom_input1"
               >
-                <option value="">Select device type...</option>
-                {DEVICE_TYPES.map(({ value, label }) => (
+                <option value="">Select device category...</option>
+                {DEVICE_TYPE_OPTIONS.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
                 {isEditMode &&
                   deviceType &&
-                  !DEVICE_TYPES.some((t) => t.value === deviceType) && (
+                  !DEVICE_TYPE_OPTIONS.some((t) => t.value === deviceType) && (
                     <option value={deviceType}>{deviceType} (legacy)</option>
                   )}
               </Form.Select>
+            </Form.Group>
+            {isGpsTrackerType(deviceType) && (
+              <Form.Group className="my-1">
+                <Form.Label className="custom_label1">Device Model *</Form.Label>
+                <Form.Select
+                  value={deviceModel}
+                  onChange={(e) => setDeviceModel(e.target.value)}
+                  required
+                  className="custom_input1"
+                >
+                  <option value="">Select model...</option>
+                  {getModelsForCategory(deviceType).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            )}
+            {isGpsTrackerType(deviceType) && (
+              <Form.Group className="my-1">
+                <Form.Label className="custom_label1">Vehicle Name *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => {
+                    setDisplayName(e.target.value);
+                    if (displayNameError) setDisplayNameError('');
+                  }}
+                  required
+                  className="custom_input1"
+                  placeholder="e.g. Royal Enfield GT650"
+                  maxLength={80}
+                  isInvalid={Boolean(displayNameError)}
+                />
+                {displayNameError ? (
+                  <Form.Control.Feedback type="invalid">{displayNameError}</Form.Control.Feedback>
+                ) : (
+                  <Form.Text className="text-muted">Shown on the Tracker Dashboard.</Form.Text>
+                )}
+              </Form.Group>
+            )}
+            <Form.Group className="my-1">
+              <Form.Label className="custom_label1">Device ID</Form.Label>
+              <Form.Control type="text" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} required className="custom_input1" />
+            </Form.Group>
+            <Form.Group className="my-1">
+              <Form.Label className="custom_label1">UID</Form.Label>
+              <Form.Control className="custom_input1" type="text" value={uid} disabled />
             </Form.Group>
             {isGpsTrackerType(deviceType) && (
               <Form.Group className="my-1">
@@ -531,7 +625,7 @@ export default function AddDevice() {
                 {imeiError ? (
                   <Form.Control.Feedback type="invalid">{imeiError}</Form.Control.Feedback>
                 ) : (
-                  <Form.Text className="text-muted">Required for Teltonika GPS trackers (15–16 digits).</Form.Text>
+                  <Form.Text className="text-muted">Hardware ID used by Teltonika_Tracker (15–16 digits).</Form.Text>
                 )}
               </Form.Group>
             )}
@@ -691,9 +785,11 @@ export default function AddDevice() {
           <Col md={4}>
             <Form.Select value={searchColumn} onChange={(e) => setSearchColumn(e.target.value)} className="custom_input1">
               <option value="">All Columns</option>
+              <option value="displayName">Vehicle / Display Name</option>
               <option value="uid">UID</option>
               <option value="deviceId">Device ID</option>
-              <option value="deviceType">Type</option>
+              <option value="deviceType">Category</option>
+              <option value="deviceModel">Model</option>
               <option value="imei">IMEI</option>
               <option value="companyName">Company</option>
               <option value="createdAt">Date</option>
@@ -718,9 +814,11 @@ export default function AddDevice() {
                   <th style={{ cursor: 'pointer' }} onClick={() => setSortByDateAsc(!sortByDateAsc)}>
                     Date {sortByDateAsc ? '↑' : '↓'}
                   </th>
+                  <th>Vehicle / Display Name</th>
                   <th>UID</th>
                   <th>Device ID</th>
-                  <th>Type</th>
+                  <th>Category</th>
+                  <th>Model</th>
                   <th>IMEI</th>
                   <th>Company</th>
                   <th>Zone</th>
@@ -732,17 +830,21 @@ export default function AddDevice() {
               <tbody>
                 {filteredDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={role === 'admin' || role === 'superadmin' ? 8 : 7} className="text-center">No matching devices</td>
+                    <td colSpan={role === 'admin' || role === 'superadmin' ? 10 : 9} className="text-center">No matching devices</td>
                   </tr>
                 ) : (
                   filteredDevices.map((dev, index) => (
                     <tr key={index}>
                       <td>{new Date(dev.createdAt).toLocaleDateString()}</td>
+                      <td>{dev.displayName || '—'}</td>
                       <td>{dev.uid}</td>
                       <td>{dev.deviceId}</td>
-                      <td>{dev.deviceType}</td>
+                      <td>{categoryLabel(dev.deviceType)}</td>
+                      <td>{dev.deviceModel || '—'}</td>
                       <td>
-                        {isGpsTrackerType(dev.deviceType) && dev.imei ? dev.imei : '—'}
+                        {isGpsTrackerType(dev.deviceType) && dev.imei
+                          ? maskImeiForTable(dev.imei)
+                          : '—'}
                       </td>
                       <td>{dev.companyName}</td>
                       <td>

@@ -1,4 +1,4 @@
-// ✅ Shared IMEI helpers for GPS Tracker (Teltonika) device registration
+// ✅ Shared IMEI helpers for Fleet Tracker (Teltonika gpsTracker) device registration
 const IMEI_REGEX = /^\d{15,16}$/;
 
 function normalizeImei(value) {
@@ -13,7 +13,7 @@ function isGpsTrackerType(deviceType) {
 
 /**
  * Validate IMEI against device type rules.
- * - gpsTracker: required, 15–16 digits
+ * - gpsTracker (Fleet Tracker): required, 15–16 digits
  * - other types: IMEI not required (returned as undefined / clear)
  */
 function validateImeiForDeviceType(deviceType, imeiRaw) {
@@ -21,7 +21,7 @@ function validateImeiForDeviceType(deviceType, imeiRaw) {
 
   if (isGpsTrackerType(deviceType)) {
     if (!imei) {
-      return { ok: false, message: 'IMEI is required for GPS Tracker devices' };
+      return { ok: false, message: 'IMEI is required for Fleet Tracker devices' };
     }
     if (!IMEI_REGEX.test(imei)) {
       return { ok: false, message: 'IMEI must be 15 or 16 digits (numbers only)' };

@@ -11,7 +11,7 @@ export default function TrackerTable({
   search,
   statusFilter,
 }) {
-  const [sortKey, setSortKey] = useState('deviceId');
+  const [sortKey, setSortKey] = useState('displayName');
   const [sortDir, setSortDir] = useState('asc');
 
   const filtered = useMemo(() => {
@@ -20,8 +20,10 @@ export default function TrackerTable({
     if (q) {
       rows = rows.filter(
         (d) =>
+          String(d.displayName || '').toLowerCase().includes(q) ||
           String(d.deviceId || '').toLowerCase().includes(q) ||
           String(d.uid || '').toLowerCase().includes(q) ||
+          String(d.deviceModel || '').toLowerCase().includes(q) ||
           String(d.imeiMasked || '').toLowerCase().includes(q)
       );
     }
@@ -63,7 +65,7 @@ export default function TrackerTable({
         <Table hover size="sm" className="mb-0 align-middle">
           <thead className="table-light sticky-top">
             <tr style={{ fontSize: '0.7rem' }}>
-              <th role="button" onClick={() => toggleSort('deviceId')}>Device</th>
+              <th role="button" onClick={() => toggleSort('displayName')}>Vehicle</th>
               <th role="button" onClick={() => toggleSort('status')}>Status</th>
               <th role="button" onClick={() => toggleSort('speed')}>Speed</th>
               <th role="button" onClick={() => toggleSort('lastSeenAt')}>Last seen</th>
@@ -88,9 +90,10 @@ export default function TrackerTable({
                   }}
                 >
                   <td>
-                    <div className="fw-semibold">{row.deviceId}</div>
+                    <div className="fw-semibold">{row.displayName || row.deviceId}</div>
                     <div className="text-muted" style={{ fontSize: '0.65rem' }}>
-                      {row.uid}
+                      {row.deviceModel ? `${row.deviceModel} · ` : ''}
+                      {row.deviceId}
                     </div>
                   </td>
                   <td>

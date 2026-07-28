@@ -45,6 +45,10 @@ const {
   validateImeiForDeviceType,
   isImeiDuplicateKeyError,
 } = require("./backend/utils/deviceImei");
+const {
+  validateDeviceModelForType,
+  validateDisplayNameForType,
+} = require("./backend/utils/deviceCatalog");
 // ✅ Temporary Live Device Data Monitor — remove after demo
 const demoLiveDataRouter = require('./backend/routes/demoLiveData');
 const trackerRoutes = require('./backend/tracker/routes/trackerRoutes');
@@ -1319,13 +1323,24 @@ app.get('/api/devices/count/by-company', async (req, res) => {
 app.post('/api/devices', async (req, res) => {
   try {
     const { companyName, uid, deviceId, deviceType, elevatorZoneId,
-      siteName, plantName, machineName, location, phaseType, imei } = req.body;
+      siteName, plantName, machineName, location, phaseType, imei,
+      deviceModel, displayName } = req.body;
 
     if (!companyName || !uid || !deviceId || !deviceType) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // ✅ GPS Tracker: IMEI required + format; other types: IMEI not required
+    // ✅ Fleet Tracker: model + displayName required
+    const modelCheck = validateDeviceModelForType(deviceType, deviceModel);
+    if (!modelCheck.ok) {
+      return res.status(400).json({ message: modelCheck.message });
+    }
+    const nameCheck = validateDisplayNameForType(deviceType, displayName);
+    if (!nameCheck.ok) {
+      return res.status(400).json({ message: nameCheck.message });
+    }
+
+    // ✅ Fleet Tracker: IMEI required + format; other types: IMEI not required
     const imeiCheck = validateImeiForDeviceType(deviceType, imei);
     if (!imeiCheck.ok) {
       return res.status(400).json({ message: imeiCheck.message });
@@ -1373,6 +1388,8 @@ app.post('/api/devices', async (req, res) => {
       ...(location !== undefined ? { location } : {}),
       ...(phaseType !== undefined ? { phaseType } : {}),
       ...(imeiCheck.imei ? { imei: imeiCheck.imei } : {}),
+      ...(modelCheck.deviceModel ? { deviceModel: modelCheck.deviceModel } : {}),
+      ...(nameCheck.displayName ? { displayName: nameCheck.displayName } : {}),
     });
 
     await newDevice.save();
@@ -1415,7 +1432,8 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
     }
 
     const { companyName, deviceId, deviceType, elevatorZoneId,
-      siteName, plantName, machineName, location, phaseType, imei } = req.body || {};
+      siteName, plantName, machineName, location, phaseType, imei,
+      deviceModel, displayName, uid } = req.body || {};
     const update = {};
     // superadmin can change companyName
     if (companyName !== undefined && actorRole === 'superadmin') update.companyName = companyName;
@@ -1427,6 +1445,26 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
     if (location !== undefined) update.location = location;
     if (phaseType !== undefined) update.phaseType = phaseType;
 
+    // ✅ Allow UID update (linked to Device ID on the frontend)
+    if (uid !== undefined) {
+      const nextUid = String(uid || '').trim();
+      if (!nextUid) {
+        return res.status(400).json({ message: 'UID is required' });
+      }
+      if (nextUid !== targetDevice.uid) {
+        const uidTaken = await Device.findOne({
+          uid: nextUid,
+          _id: { $ne: targetDevice._id },
+        }).lean();
+        if (uidTaken) {
+          return res.status(409).json({
+            message: `UID "${nextUid}" is already used by another device`,
+          });
+        }
+      }
+      update.uid = nextUid;
+    }
+
     const nextCompany =
       companyName !== undefined && actorRole === 'superadmin'
         ? companyName
@@ -1434,7 +1472,34 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
     const effectiveType =
       deviceType !== undefined ? deviceType : targetDevice.deviceType;
 
-    // ✅ GPS Tracker IMEI rules (required only for gpsTracker)
+    // ✅ Fleet Tracker model rules (clear model when leaving Fleet Tracker)
+    const modelSource =
+      deviceModel !== undefined
+        ? deviceModel
+        : (String(effectiveType).toLowerCase() === 'gpstracker' ? targetDevice.deviceModel : undefined);
+    const modelCheck = validateDeviceModelForType(effectiveType, modelSource);
+    if (!modelCheck.ok) {
+      return res.status(400).json({ message: modelCheck.message });
+    }
+    if (modelCheck.clearModel) {
+      await Device.updateOne({ _id: targetDevice._id }, { $unset: { deviceModel: 1 } });
+    } else if (modelCheck.deviceModel) {
+      update.deviceModel = modelCheck.deviceModel;
+    }
+
+    // ✅ displayName: required for Fleet Tracker; preserved across type changes
+    const nameSource =
+      displayName !== undefined ? displayName : targetDevice.displayName;
+    const nameCheck = validateDisplayNameForType(effectiveType, nameSource);
+    if (!nameCheck.ok) {
+      return res.status(400).json({ message: nameCheck.message });
+    }
+    if (nameCheck.displayName) {
+      update.displayName = nameCheck.displayName;
+    }
+    // Do NOT unset displayName when leaving Fleet Tracker (preserve)
+
+    // ✅ Fleet Tracker IMEI rules (required only for gpsTracker)
     const imeiSource =
       imei !== undefined
         ? imei
@@ -1444,7 +1509,7 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: imeiCheck.message });
     }
     if (imeiCheck.clearImei) {
-      // Remove IMEI when device is not (or no longer) a GPS Tracker
+      // Remove IMEI when device is not (or no longer) a Fleet Tracker
       await Device.updateOne({ _id: targetDevice._id }, { $unset: { imei: 1 } });
     } else if (imeiCheck.imei) {
       const existingImei = await Device.findOne({
@@ -1496,6 +1561,9 @@ app.put('/api/devices/:id', authenticateToken, async (req, res) => {
     console.error('Update device error:', err.message);
     if (isImeiDuplicateKeyError(err)) {
       return res.status(409).json({ message: 'IMEI is already registered to another device' });
+    }
+    if (err.code === 11000 && (err.keyPattern?.uid || String(err.message || '').includes('uid'))) {
+      return res.status(409).json({ message: 'UID is already used by another device' });
     }
     return res.status(500).json({ message: 'Server error' });
   }
