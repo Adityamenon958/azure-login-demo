@@ -1,0 +1,19 @@
+.wrap {
+  height: 100%;
+  min-height: 320px;
+}
+
+.mapBox {
+  height: 300px;
+}
+
+.marker {
+  background: transparent;
+  border: none;
+}
+
+@media (min-width: 992px) {
+  .mapBox {
+    height: 360px;
+  }
+}

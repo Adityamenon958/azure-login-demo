@@ -47,6 +47,7 @@ const {
 } = require("./backend/utils/deviceImei");
 // ✅ Temporary Live Device Data Monitor — remove after demo
 const demoLiveDataRouter = require('./backend/routes/demoLiveData');
+const trackerRoutes = require('./backend/tracker/routes/trackerRoutes');
 const {
   parseSampleValueString,
   extractMeterEntries,
@@ -7761,6 +7762,8 @@ app.get("/api/company-dashboard-access", authenticateToken, async (req, res) => 
                 dashboard: true,
                 craneOverview: false,
                 elevatorOverview: false,
+                energyOverview: false,
+                trackerOverview: false,
                 craneDashboard: false,
                 reports: true,
                 addUsers: true,
@@ -8761,6 +8764,9 @@ app.get("/api/elevator/timeseries-stats", authenticateToken, async (req, res) =>
 
 // ✅ Temporary demo API — delete mount + backend/routes/demoLiveData.js + backend/services/demoLiveDataStore.js after demo
 app.use('/api/demo', demoLiveDataRouter);
+
+// ✅ Tracker Dashboard APIs (independent of Crane) — reads avlrecords via repository/mapper layer
+app.use('/api/tracker', authenticateToken, trackerRoutes);
 
 app.use(express.static(path.join(__dirname, "frontend/dist")));
 

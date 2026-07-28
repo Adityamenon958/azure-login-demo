@@ -12,6 +12,7 @@ const companyDashboardAccessSchema = new mongoose.Schema({
     craneOverview: { type: Boolean, default: false },
     elevatorOverview: { type: Boolean, default: false },
     energyOverview: { type: Boolean, default: false },
+    trackerOverview: { type: Boolean, default: false },
     craneDashboard: { type: Boolean, default: false },
     reports: { type: Boolean, default: true },
     addUsers: { type: Boolean, default: true },

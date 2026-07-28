@@ -23,6 +23,8 @@ import EnergyFleetAlarmSettings from './pages/EnergyFleetAlarmSettings';
 import Simulator from './pages/Simulator';
 import SimulatorRouteGuard from './components/SimulatorRouteGuard';
 import LiveDataDemo from './pages/demo/LiveDataDemo';
+import TrackerOverview from './tracker/pages/TrackerOverview';
+import TrackerDeviceDetail from './tracker/pages/TrackerDeviceDetail';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -55,6 +57,18 @@ function App() {
         <Route path="device" element={<Navigate to="GS-1234" replace />} />
         <Route path="device/:deviceId" element={<DynamicDb />} />
         <Route path="crane" element={<CraneDashboard />} />
+
+        {/* ✅ Tracker Overview — primary GPS dashboard (independent of Crane) */}
+        <Route path="tracker-overview" element={
+          <RouteGuard requiredAccess="trackerOverview">
+            <TrackerOverview />
+          </RouteGuard>
+        } />
+        <Route path="tracker/:deviceId" element={
+          <RouteGuard requiredAccess="trackerOverview">
+            <TrackerDeviceDetail />
+          </RouteGuard>
+        } />
         
         {/* ✅ Protected Routes with Access Control */}
         <Route path="crane-overview" element={

@@ -69,6 +69,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         const accessChecks = await Promise.all([
           axios.get('/api/check-dashboard-access/home', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/dashboard', { withCredentials: true }),
+          axios.get('/api/check-dashboard-access/trackerOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/craneOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/elevatorOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/energyOverview', { withCredentials: true }),
@@ -80,16 +81,17 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         ]);
 
         const access = {
-          home: accessChecks[0].data.hasAccess, // ✅ Now respects database setting
+          home: accessChecks[0].data.hasAccess,
           dashboard: accessChecks[1].data.hasAccess,
-          craneOverview: accessChecks[2].data.hasAccess,
-          elevatorOverview: accessChecks[3].data.hasAccess,
-          energyOverview: accessChecks[4].data.hasAccess,
-          reports: accessChecks[5].data.hasAccess,
-          addUsers: accessChecks[6].data.hasAccess,
-          addDevices: accessChecks[7].data.hasAccess,
-          subscription: accessChecks[8].data.hasAccess,
-          settings: accessChecks[9].data.hasAccess
+          trackerOverview: accessChecks[2].data.hasAccess,
+          craneOverview: accessChecks[3].data.hasAccess,
+          elevatorOverview: accessChecks[4].data.hasAccess,
+          energyOverview: accessChecks[5].data.hasAccess,
+          reports: accessChecks[6].data.hasAccess,
+          addUsers: accessChecks[7].data.hasAccess,
+          addDevices: accessChecks[8].data.hasAccess,
+          subscription: accessChecks[9].data.hasAccess,
+          settings: accessChecks[10].data.hasAccess
         };
 
         setCompanyAccess(access);
@@ -100,6 +102,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         setCompanyAccess({
           home: true,
           dashboard: true,
+          trackerOverview: false,
           craneOverview: false,
           elevatorOverview: false,
           energyOverview: false,
@@ -193,7 +196,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           </Button>
           )}
 
-          {/* ✅ Crane Overview - Check access for non-superadmin */}
+          {/* ✅ Tracker Overview — primary GPS dashboard */}
+          {(role === 'superadmin' || companyAccess.trackerOverview) && (
+          <Button className={`${styles.iconButton} ${location.pathname.startsWith('/dashboard/tracker') ? styles.active : ''}`} onClick={() => navigate('/dashboard/tracker-overview')}>
+             <Radio size={22} className={`${styles.navText} me-2`} />
+              Tracker Overview
+          </Button>
+          )}
+
+          {/* ✅ Crane Overview - Check access for non-superadmin (legacy; hide via access flag) */}
           {(role === 'superadmin' || companyAccess.craneOverview) && (
           <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/crane-overview' ? styles.active : ''}`} onClick={() => navigate('/dashboard/crane-overview')}>
              <Truck size={30} className={`${styles.navText} me-2`} />

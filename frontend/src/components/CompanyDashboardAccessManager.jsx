@@ -13,6 +13,7 @@ import {
   CreditCard,
   FileText,
   Zap,
+  Radio,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -33,6 +34,7 @@ export default function CompanyDashboardAccessManager() {
   const dashboards = [
     { key: 'home', name: 'Home', icon: Home, default: true },
     { key: 'dashboard', name: 'Dashboard', icon: BarChart3, default: true },
+    { key: 'trackerOverview', name: 'Tracker Overview', icon: Radio, default: false },
     { key: 'craneOverview', name: 'Crane Overview', icon: Truck, default: false },
     { key: 'elevatorOverview', name: 'Elevator Overview', icon: ArrowUpDown, default: false },
     { key: 'energyOverview', name: 'Energy Overview', icon: Zap, default: false },
