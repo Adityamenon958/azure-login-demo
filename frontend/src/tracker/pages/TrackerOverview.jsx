@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Row, Spinner } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { TrackerSelectionProvider, useTrackerSelection } from '../context/TrackerSelectionContext';
 import { useTrackerOverview } from '../hooks/useTrackerOverview';
 import { useTrackerLiveLocations } from '../hooks/useTrackerLiveLocations';
@@ -32,6 +33,7 @@ function defaultDayRange() {
 }
 
 function TrackerOverviewInner() {
+  const navigate = useNavigate();
   const {
     selectedDeviceId,
     setSelectedDeviceId,
@@ -90,6 +92,12 @@ function TrackerOverviewInner() {
     }));
   };
 
+  // ✅ Table row → Vehicle Detail page
+  const handleTableNavigate = (id) => {
+    setSelectedDeviceId(id);
+    navigate(`/dashboard/tracker/${encodeURIComponent(id)}`);
+  };
+
   return (
     <Col xs={12} md={9} lg={10} xl={10} className={`${styles.page} p-3`}>
       <div className="mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -143,6 +151,7 @@ function TrackerOverviewInner() {
             loading={overview.loading && !overview.data}
             selectedDeviceId={selectedDeviceId}
             onSelect={setSelectedDeviceId}
+            onNavigate={handleTableNavigate}
             search={filters.search}
             statusFilter={filters.status}
           />

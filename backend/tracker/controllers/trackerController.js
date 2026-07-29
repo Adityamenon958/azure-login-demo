@@ -5,6 +5,7 @@ const liveService = require('../services/trackerLiveService');
 const deviceService = require('../services/trackerDeviceService');
 const historyService = require('../services/trackerHistoryService');
 const statsService = require('../services/trackerStatsService');
+const journeyService = require('../services/trackerJourneyService');
 
 function scopeFromReq(req) {
   const { role, companyName } = req.user || {};
@@ -88,6 +89,16 @@ const getActivity = asyncHandler(async (req, res) => {
   return ok(res, data);
 });
 
+const getJourney = asyncHandler(async (req, res) => {
+  const data = await journeyService.getJourney({
+    ...scopeFromReq(req),
+    deviceId: req.params.id,
+    from: req.query.from,
+    to: req.query.to,
+  });
+  return ok(res, data);
+});
+
 module.exports = {
   getOverview,
   getLiveLocations,
@@ -97,4 +108,5 @@ module.exports = {
   getHistory,
   getStatistics,
   getActivity,
+  getJourney,
 };

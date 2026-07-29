@@ -106,6 +106,10 @@ async function getStatistics({
     const speed = Number(mapped?.speed) || 0;
     bucket.speeds.push(speed);
     bucket.pointCount += 1;
+    if (mapped?.batteryVoltage != null) {
+      if (!bucket.batteries) bucket.batteries = [];
+      bucket.batteries.push(mapped.batteryVoltage);
+    }
 
     const isMoving = speed >= MOVING_SPEED_KMH || mapped?.movement === true;
     if (isMoving && bucket.lastTs != null) {
@@ -120,12 +124,18 @@ async function getStatistics({
         ? b.speeds.reduce((a, c) => a + c, 0) / b.speeds.length
         : 0;
     const maxSpeed = b.speeds.length > 0 ? Math.max(...b.speeds) : 0;
+    const avgBattery =
+      b.batteries && b.batteries.length > 0
+        ? b.batteries.reduce((a, c) => a + c, 0) / b.batteries.length
+        : null;
     return {
       bucketStart: b.bucketStart,
       avgSpeed: Math.round(avgSpeed * 100) / 100,
       maxSpeed: Math.round(maxSpeed * 100) / 100,
       movingMinutes: Math.round((b.movingMs / 60000) * 100) / 100,
       pointCount: b.pointCount,
+      avgBatteryVoltage:
+        avgBattery != null ? Math.round(avgBattery * 1000) / 1000 : null,
     };
   });
 

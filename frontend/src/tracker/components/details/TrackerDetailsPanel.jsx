@@ -60,7 +60,7 @@ export default function TrackerDetailsPanel({ deviceId, detail, loading }) {
               </li>
               <li className="mb-1">
                 <span className="text-muted">Movement:&nbsp;</span>
-                {state?.movement ? 'Yes' : 'No'}
+                {state?.movement ? 'Moving' : 'Stationary'}
               </li>
               <li className="mb-1">
                 <span className="text-muted">Satellites:&nbsp;</span>
@@ -90,7 +90,7 @@ export default function TrackerDetailsPanel({ deviceId, detail, loading }) {
                 variant="primary"
                 onClick={() => navigate(`/dashboard/tracker/${encodeURIComponent(deviceId)}`)}
               >
-                Full history
+                Open vehicle detail
               </Button>
             </div>
           </>

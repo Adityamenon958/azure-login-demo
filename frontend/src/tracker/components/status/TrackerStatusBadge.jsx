@@ -5,7 +5,6 @@ export default function TrackerStatusBadge({ status }) {
   const key = normalizeStatus(status);
   const color = STATUS_COLORS[key] || STATUS_COLORS.needsAttention;
   const label = STATUS_LABELS[key] || status || 'Unknown';
-  // ✅ Idle amber needs dark text for contrast; others use white on accent
   const textColor = key === 'idle' ? '#78350F' : '#fff';
 
   return (
@@ -15,7 +14,9 @@ export default function TrackerStatusBadge({ status }) {
         backgroundColor: color,
         color: textColor,
         fontWeight: 600,
-        fontSize: '0.7rem',
+        fontSize: '0.72rem',
+        padding: '0.4em 0.65em',
+        letterSpacing: '0.01em',
       }}
     >
       {label}

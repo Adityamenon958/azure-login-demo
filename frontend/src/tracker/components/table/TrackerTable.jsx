@@ -9,6 +9,7 @@ export default function TrackerTable({
   loading,
   selectedDeviceId,
   onSelect,
+  onNavigate,
   search,
   statusFilter,
 }) {
@@ -55,6 +56,11 @@ export default function TrackerTable({
     }
   };
 
+  const handleRowClick = (deviceId) => {
+    if (onNavigate) onNavigate(deviceId);
+    else onSelect?.(deviceId);
+  };
+
   return (
     <div className="bg-white border-0 shadow-sm rounded h-100 p-2" style={{ minHeight: 320 }}>
       <div className="d-flex justify-content-between align-items-center mb-2 px-1">
@@ -84,11 +90,11 @@ export default function TrackerTable({
               filtered.map((row) => (
                 <tr
                   key={row.deviceId}
-                  onClick={() => onSelect?.(row.deviceId)}
+                  onClick={() => handleRowClick(row.deviceId)}
                   style={{
                     cursor: 'pointer',
                     background:
-                      selectedDeviceId === row.deviceId ? 'rgba(13,110,253,0.08)' : undefined,
+                      selectedDeviceId === row.deviceId ? 'rgba(21,128,61,0.08)' : undefined,
                   }}
                 >
                   <td>

@@ -1,0 +1,151 @@
+.header {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.back {
+  display: inline-block;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.back:hover {
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.identity {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.liveSpeed {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #15803d;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.company {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.updated {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.ids em {
+  font-style: normal;
+  font-weight: 500;
+  color: #cbd5e1;
+  margin-right: 4px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.actionBtn {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  padding: 0 10px;
+}
+
+.refreshMeta {
+  width: 100%;
+  text-align: right;
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+@media (max-width: 767.98px) {
+  .header {
+    padding: 12px;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .refreshMeta {
+    text-align: left;
+  }
+}

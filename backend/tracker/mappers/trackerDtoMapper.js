@@ -47,8 +47,49 @@ function toStateDto(device, avlDoc, now = new Date()) {
       ignition: false,
       movement: false,
       batteryVoltage: null,
+      externalVoltage: null,
+      gsmSignal: null,
+      gnssStatus: null,
+      gnssStatusLabel: null,
+      gsmSignalLabel: null,
+      sleepMode: false,
+      pdop: null,
+      hdop: null,
+      totalOdometer: null,
+      tripOdometer: null,
       lastSeenAt: null,
     };
+  }
+
+  const gnssStatus = mapped.gnssStatus ?? null;
+  // ✅ Teltonika IO 69 — never expose raw codes to clients as the label
+  let gnssStatusLabel = null;
+  if (gnssStatus === 0) gnssStatusLabel = 'GPS Off';
+  else if (gnssStatus === 1) gnssStatusLabel = 'GPS Locked';
+  else if (gnssStatus === 2) gnssStatusLabel = 'Searching…';
+  else if (gnssStatus === 3) gnssStatusLabel = 'GPS Sleep';
+  else if (gnssStatus === 4) gnssStatusLabel = 'GPS Locked';
+  else if (gnssStatus != null) gnssStatusLabel = 'No GPS Fix';
+  else if (
+    Number.isFinite(Number(mapped.latitude)) &&
+    Number.isFinite(Number(mapped.longitude)) &&
+    !(Number(mapped.latitude) === 0 && Number(mapped.longitude) === 0)
+  ) {
+    gnssStatusLabel = 'GPS Locked';
+  }
+
+  // ✅ Teltonika IO 21 — GSM signal scale 1–5
+  const gsmSignal = mapped.gsmSignal;
+  let gsmSignalLabel = null;
+  if (gsmSignal == null || Number.isNaN(Number(gsmSignal))) {
+    gsmSignalLabel = null;
+  } else {
+    const g = Math.round(Number(gsmSignal));
+    if (g <= 0) gsmSignalLabel = 'No Signal';
+    else if (g === 1) gsmSignalLabel = 'Weak';
+    else if (g === 2) gsmSignalLabel = 'Fair';
+    else if (g === 3 || g === 4) gsmSignalLabel = 'Good';
+    else if (g >= 5) gsmSignalLabel = 'Excellent';
   }
 
   return {
@@ -62,6 +103,16 @@ function toStateDto(device, avlDoc, now = new Date()) {
     ignition: mapped.ignition === true,
     movement: mapped.movement === true,
     batteryVoltage: mapped.batteryVoltage,
+    externalVoltage: mapped.externalVoltage,
+    gsmSignal,
+    gsmSignalLabel,
+    gnssStatus,
+    gnssStatusLabel,
+    sleepMode: mapped.sleepMode === true,
+    pdop: mapped.pdop,
+    hdop: mapped.hdop,
+    totalOdometer: mapped.totalOdometer,
+    tripOdometer: mapped.tripOdometer,
     lastSeenAt: lastSeenAt ? new Date(lastSeenAt).toISOString() : null,
   };
 }
@@ -141,6 +192,7 @@ function toHistoryPointDto(avlDoc) {
     heading: mapped.heading,
     ignition: mapped.ignition === true,
     movement: mapped.movement === true,
+    batteryVoltage: mapped.batteryVoltage,
   };
 }
 

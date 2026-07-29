@@ -13,6 +13,7 @@ router.get('/devices', controller.listDevices);
 router.get('/devices/:id', controller.getDevice);
 router.get('/devices/:id/history', controller.getHistory);
 router.get('/devices/:id/statistics', controller.getStatistics);
+router.get('/devices/:id/journey', controller.getJourney);
 router.get('/activity', controller.getActivity);
 
 router.use(trackerErrorHandler);

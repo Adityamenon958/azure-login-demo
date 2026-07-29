@@ -30,3 +30,40 @@ export function formatIst(iso) {
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 }
+
+export function formatDurationMs(ms) {
+  if (ms == null || !Number.isFinite(Number(ms)) || ms < 0) return '—';
+  const totalMin = Math.round(Number(ms) / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h < 24) return m ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh ? `${d}d ${rh}h` : `${d}d`;
+}
+
+export function formatDistanceKm(km) {
+  if (km == null || Number.isNaN(Number(km))) return '—';
+  const n = Number(km);
+  if (n < 1) return `${Math.round(n * 1000)} m`;
+  return `${n.toFixed(1)} km`;
+}
+
+export function formatVoltage(v) {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  return `${Number(v).toFixed(1)} V`;
+}
+
+export function formatHeading(deg) {
+  if (deg == null || Number.isNaN(Number(deg))) return '—';
+  return `${Math.round(Number(deg))}°`;
+}
+
+// Re-export live status helpers for convenience
+export {
+  formatGnssStatus,
+  formatGsmSignal,
+  formatMovement,
+  formatHeadingCardinal,
+} from './liveStatusLabels';

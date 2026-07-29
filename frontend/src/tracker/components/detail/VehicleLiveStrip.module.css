@@ -1,0 +1,45 @@
+.strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+  padding-bottom: 2px;
+  mask-image: linear-gradient(to right, #000 92%, transparent);
+}
+
+.chip {
+  flex: 0 0 auto;
+  min-width: 112px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.value {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.on {
+  color: #15803d;
+}
+
+.off {
+  color: #94a3b8;
+}

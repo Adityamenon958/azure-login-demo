@@ -137,6 +137,33 @@ async function findHistoryAscForStats({ deviceObjectId, from, to }) {
 }
 
 /**
+ * History points for journey / route (ascending, includes coordinates).
+ */
+async function findHistoryAscForJourney({ deviceObjectId, from, to }) {
+  const id =
+    deviceObjectId instanceof mongoose.Types.ObjectId
+      ? deviceObjectId
+      : new mongoose.Types.ObjectId(deviceObjectId);
+
+  return AvlRecord.find({
+    device: id,
+    timestamp: { $gte: from, $lte: to },
+  })
+    .sort({ timestamp: 1 })
+    .select({
+      timestamp: 1,
+      latitude: 1,
+      longitude: 1,
+      altitude: 1,
+      speed: 1,
+      angle: 1,
+      satellites: 1,
+      ioElements: 1,
+    })
+    .lean();
+}
+
+/**
  * Latest AVL markers within a geographic bounding box (optional map endpoint).
  */
 async function findLatestInBounds({ deviceObjectIds, north, south, east, west }) {
@@ -154,5 +181,6 @@ module.exports = {
   findHistoryByDeviceId,
   findRecentByDeviceIds,
   findHistoryAscForStats,
+  findHistoryAscForJourney,
   findLatestInBounds,
 };

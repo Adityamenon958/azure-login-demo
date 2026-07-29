@@ -1,0 +1,94 @@
+.wrap {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  margin-bottom: 12px;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.body {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.empty {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.8rem;
+  padding: 24px;
+}
+
+.day {
+  padding: 0 12px 8px;
+}
+
+.dayLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  margin: 8px 0 4px;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: #f8fafc;
+}
+
+.selected {
+  background: #f0fdf4;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.time {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.summary {
+  font-size: 0.7rem;
+  color: #64748b;
+}

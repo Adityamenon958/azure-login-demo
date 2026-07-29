@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as trackerApi from '../services/trackerApi';
-const { fetchOverview, fetchLiveLocations, fetchDevice, fetchHistory, fetchStatistics, fetchActivity } = trackerApi;
+
+const {
+  fetchOverview,
+  fetchLiveLocations,
+  fetchDevice,
+  fetchHistory,
+  fetchStatistics,
+  fetchActivity,
+  fetchJourney,
+} = trackerApi;
 
 function usePolledResource(fetcher, intervalMs, { enabled = true, deps = [] } = {}) {
   const [data, setData] = useState(null);
@@ -8,10 +17,15 @@ function usePolledResource(fetcher, intervalMs, { enabled = true, deps = [] } = 
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const mounted = useRef(true);
+  const loadRef = useRef(null);
 
   const load = useCallback(
     async (silent = false) => {
       if (!enabled) return;
+      // ✅ Pause network work when tab is hidden (interval still checked in tick)
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && silent) {
+        return;
+      }
       try {
         if (!silent) setLoading(true);
         const result = await fetcher();
@@ -34,6 +48,8 @@ function usePolledResource(fetcher, intervalMs, { enabled = true, deps = [] } = 
     [enabled, fetcher, ...deps]
   );
 
+  loadRef.current = load;
+
   useEffect(() => {
     mounted.current = true;
     if (!enabled) {
@@ -41,11 +57,29 @@ function usePolledResource(fetcher, intervalMs, { enabled = true, deps = [] } = 
       return undefined;
     }
     load(false);
-    if (!intervalMs) return () => { mounted.current = false; };
-    const id = setInterval(() => load(true), intervalMs);
+    if (!intervalMs) {
+      return () => {
+        mounted.current = false;
+      };
+    }
+
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      loadRef.current?.(true);
+    }, intervalMs);
+
+    // ✅ Immediate silent refresh when tab becomes visible again
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadRef.current?.(true);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       mounted.current = false;
       clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [enabled, intervalMs, load]);
 
@@ -70,14 +104,14 @@ export function useTrackerDevice(deviceId, intervalMs) {
   });
 }
 
-export function useTrackerHistory(deviceId, from, to) {
+export function useTrackerHistory(deviceId, from, to, limit = 2000) {
   const fetcher = useCallback(
-    () => fetchHistory(deviceId, { from, to, limit: 2000 }),
-    [deviceId, from, to]
+    () => fetchHistory(deviceId, { from, to, limit }),
+    [deviceId, from, to, limit]
   );
   return usePolledResource(fetcher, null, {
     enabled: Boolean(deviceId && from && to),
-    deps: [deviceId, from, to],
+    deps: [deviceId, from, to, limit],
   });
 }
 
@@ -100,5 +134,16 @@ export function useTrackerActivity(deviceId, intervalMs) {
   return usePolledResource(fetcher, intervalMs, {
     enabled: true,
     deps: [deviceId],
+  });
+}
+
+export function useTrackerJourney(deviceId, from, to) {
+  const fetcher = useCallback(
+    () => fetchJourney(deviceId, { from, to }),
+    [deviceId, from, to]
+  );
+  return usePolledResource(fetcher, null, {
+    enabled: Boolean(deviceId && from && to),
+    deps: [deviceId, from, to],
   });
 }

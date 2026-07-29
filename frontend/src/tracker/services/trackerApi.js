@@ -49,6 +49,14 @@ export async function fetchActivity(params = {}) {
   return unwrap(res);
 }
 
+export async function fetchJourney(deviceId, params) {
+  const res = await client.get(
+    `/api/tracker/devices/${encodeURIComponent(deviceId)}/journey`,
+    { params }
+  );
+  return unwrap(res);
+}
+
 export async function fetchMapBounds(params) {
   const res = await client.get('/api/tracker/map/bounds', { params });
   return unwrap(res);
