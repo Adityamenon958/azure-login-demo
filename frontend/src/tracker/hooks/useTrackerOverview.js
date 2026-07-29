@@ -126,14 +126,14 @@ export function useTrackerStats(deviceId, from, to, interval = '5m', enabled = f
   });
 }
 
-export function useTrackerActivity(deviceId, intervalMs) {
+export function useTrackerActivity(deviceId, intervalMs, enabled = true) {
   const fetcher = useCallback(
     () => fetchActivity(deviceId ? { deviceId, limit: 30 } : { limit: 30 }),
     [deviceId]
   );
   return usePolledResource(fetcher, intervalMs, {
-    enabled: true,
-    deps: [deviceId],
+    enabled: Boolean(enabled),
+    deps: [deviceId, enabled],
   });
 }
 

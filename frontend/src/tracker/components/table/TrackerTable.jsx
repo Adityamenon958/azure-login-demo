@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Spinner, Table } from 'react-bootstrap';
 import TrackerStatusBadge from '../status/TrackerStatusBadge';
 import { formatRelativeTime, formatSpeed } from '../../utils/formatters';
-import { normalizeStatus } from '../../constants/trackerStatus';
+import { filterDevices } from '../../utils/filterDevices';
 
 export default function TrackerTable({
   devices = [],
@@ -17,22 +17,7 @@ export default function TrackerTable({
   const [sortDir, setSortDir] = useState('asc');
 
   const filtered = useMemo(() => {
-    let rows = [...devices];
-    const q = (search || '').trim().toLowerCase();
-    if (q) {
-      rows = rows.filter(
-        (d) =>
-          String(d.displayName || '').toLowerCase().includes(q) ||
-          String(d.deviceId || '').toLowerCase().includes(q) ||
-          String(d.uid || '').toLowerCase().includes(q) ||
-          String(d.deviceModel || '').toLowerCase().includes(q) ||
-          String(d.imeiMasked || '').toLowerCase().includes(q)
-      );
-    }
-    if (statusFilter && statusFilter !== 'all') {
-      const wanted = normalizeStatus(statusFilter);
-      rows = rows.filter((d) => normalizeStatus(d.status) === wanted);
-    }
+    const rows = filterDevices(devices, { search, status: statusFilter });
     rows.sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];

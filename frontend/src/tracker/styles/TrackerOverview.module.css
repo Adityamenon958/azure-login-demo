@@ -1,10 +1,15 @@
 .page {
-  background-color: #eef6f8;
+  background-color: var(--gsn-bg-app, #eef6f8);
   height: calc(100vh - 4.5rem);
   overflow-y: auto;
   border-top-left-radius: 1.625rem;
   width: calc(100vw - 14rem);
   max-width: 100%;
+}
+
+.modeToggle {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
 }
 
 @media (max-width: 767.98px) {

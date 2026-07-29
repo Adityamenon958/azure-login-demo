@@ -21,6 +21,7 @@ import TrackerRecentActivity from '../components/activity/TrackerRecentActivity'
 import TrackerFilters from '../components/filters/TrackerFilters';
 import TrackerFilterChips from '../components/filters/TrackerFilterChips';
 import TrackerFab from '../components/filters/TrackerFab';
+import FleetMapMode from './FleetMapMode';
 import styles from '../styles/TrackerOverview.module.css';
 
 const TrackerSpeedChart = lazy(() => import('../components/charts/TrackerSpeedChart'));
@@ -42,15 +43,20 @@ function TrackerOverviewInner() {
     resetFilters,
     chartsExpanded,
     setChartsExpanded,
+    viewMode,
+    setViewMode,
   } = useTrackerSelection();
 
   const [showFilters, setShowFilters] = useState(false);
   const [exportNote, setExportNote] = useState('');
 
+  const isFleetMap = viewMode === 'fleetMap';
+
   const overview = useTrackerOverview(OVERVIEW_POLL_MS);
   const live = useTrackerLiveLocations(LIVE_LOCATIONS_POLL_MS);
   const detail = useTrackerDevice(selectedDeviceId, DEVICE_DETAIL_POLL_MS);
-  const activity = useTrackerActivity(selectedDeviceId, ACTIVITY_POLL_MS);
+  // ✅ Pause activity poll in Fleet Map — unused there
+  const activity = useTrackerActivity(selectedDeviceId, ACTIVITY_POLL_MS, !isFleetMap);
 
   const range = defaultDayRange();
   const stats = useTrackerStats(
@@ -58,13 +64,17 @@ function TrackerOverviewInner() {
     range.from,
     range.to,
     '5m',
-    chartsExpanded && Boolean(selectedDeviceId)
+    chartsExpanded && Boolean(selectedDeviceId) && !isFleetMap
   );
 
+  // ✅ Auto-select first device once — do not fight explicit deselect in Fleet Map
+  const didAutoSelect = React.useRef(false);
   useEffect(() => {
+    if (didAutoSelect.current) return;
     const devices = overview.data?.devices || [];
     if (!selectedDeviceId && devices.length > 0) {
       setSelectedDeviceId(devices[0].deviceId);
+      didAutoSelect.current = true;
     }
   }, [overview.data, selectedDeviceId, setSelectedDeviceId]);
 
@@ -73,7 +83,7 @@ function TrackerOverviewInner() {
     live.refresh();
     if (selectedDeviceId) {
       detail.refresh();
-      activity.refresh();
+      if (!isFleetMap) activity.refresh();
     }
   };
 
@@ -84,7 +94,6 @@ function TrackerOverviewInner() {
 
   const lastUpdated = overview.lastUpdated || live.lastUpdated;
 
-  // ✅ KPI card click = toggle status filter (single-select)
   const handleKpiStatusClick = (statusKey) => {
     setFilters((prev) => ({
       ...prev,
@@ -92,10 +101,13 @@ function TrackerOverviewInner() {
     }));
   };
 
-  // ✅ Table row → Vehicle Detail page
   const handleTableNavigate = (id) => {
     setSelectedDeviceId(id);
     navigate(`/dashboard/tracker/${encodeURIComponent(id)}`);
+  };
+
+  const toggleViewMode = () => {
+    setViewMode(isFleetMap ? 'dashboard' : 'fleetMap');
   };
 
   return (
@@ -103,7 +115,7 @@ function TrackerOverviewInner() {
       <div className="mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
           <h6 className="mb-0" style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-            Tracker Overview
+            {isFleetMap ? 'Fleet Map' : 'Tracker Overview'}
           </h6>
           <div className="d-flex align-items-center gap-2 text-muted" style={{ fontSize: '0.75rem' }}>
             <span>
@@ -118,11 +130,15 @@ function TrackerOverviewInner() {
           </div>
         </div>
         <div className="d-flex align-items-center gap-2">
-          <TrackerFilterChips filters={filters} onClick={() => setShowFilters(true)} />
-          <TrackerFab
-            onFiltersClick={() => setShowFilters(true)}
-            onExportClick={handleExportStub}
-          />
+          {!isFleetMap && (
+            <>
+              <TrackerFilterChips filters={filters} onClick={() => setShowFilters(true)} />
+              <TrackerFab
+                onFiltersClick={() => setShowFilters(true)}
+                onExportClick={handleExportStub}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -137,112 +153,140 @@ function TrackerOverviewInner() {
         </Alert>
       )}
 
-      <TrackerSummaryCards
-        kpis={overview.data?.kpis}
-        loading={overview.loading && !overview.data}
-        selectedStatus={filters.status}
-        onStatusClick={handleKpiStatusClick}
-      />
-
-      <Row className="g-2 mb-3">
-        <Col xs={12} lg={7}>
-          <TrackerTable
-            devices={overview.data?.devices || []}
+      {isFleetMap ? (
+        <FleetMapMode
+          devices={overview.data?.devices || []}
+          locations={live.data?.locations || []}
+          kpis={overview.data?.kpis}
+          overviewLoading={overview.loading && !overview.data}
+          liveLoading={live.loading && !live.data}
+          liveLastUpdated={live.lastUpdated}
+          detail={detail.data}
+          detailLoading={detail.loading}
+        />
+      ) : (
+        <>
+          <TrackerSummaryCards
+            kpis={overview.data?.kpis}
             loading={overview.loading && !overview.data}
-            selectedDeviceId={selectedDeviceId}
-            onSelect={setSelectedDeviceId}
-            onNavigate={handleTableNavigate}
-            search={filters.search}
-            statusFilter={filters.status}
+            selectedStatus={filters.status}
+            onStatusClick={handleKpiStatusClick}
           />
-        </Col>
-        <Col xs={12} lg={5}>
-          <TrackerLiveMap
-            locations={live.data?.locations || []}
-            loading={live.loading && !live.data}
-            selectedDeviceId={selectedDeviceId}
-            onSelect={setSelectedDeviceId}
-            statusFilter={filters.status}
-          />
-        </Col>
-      </Row>
 
-      <Row className="g-2 mb-3">
-        <Col xs={12} lg={6}>
-          <TrackerDetailsPanel
-            deviceId={selectedDeviceId}
-            detail={detail.data}
-            loading={detail.loading}
-          />
-        </Col>
-        <Col xs={12} lg={6}>
-          <TrackerRecentActivity
-            events={activity.data?.events || []}
-            loading={activity.loading && !activity.data}
-          />
-        </Col>
-      </Row>
+          <Row className="g-2 mb-3">
+            <Col xs={12} lg={7}>
+              <TrackerTable
+                devices={overview.data?.devices || []}
+                loading={overview.loading && !overview.data}
+                selectedDeviceId={selectedDeviceId}
+                onSelect={setSelectedDeviceId}
+                onNavigate={handleTableNavigate}
+                search={filters.search}
+                statusFilter={filters.status}
+              />
+            </Col>
+            <Col xs={12} lg={5}>
+              <TrackerLiveMap
+                locations={live.data?.locations || []}
+                loading={live.loading && !live.data}
+                selectedDeviceId={selectedDeviceId}
+                onSelect={setSelectedDeviceId}
+                statusFilter={filters.status}
+                searchFilter={filters.search}
+                viewMode={viewMode}
+                onToggleViewMode={toggleViewMode}
+              />
+            </Col>
+          </Row>
 
-      <Card className="border-0 shadow-sm mb-3">
-        <Card.Header
-          className="py-2 bg-white d-flex justify-content-between align-items-center"
-          role="button"
-          onClick={() => setChartsExpanded((v) => !v)}
-        >
-          <h6 className="mb-0" style={{ fontSize: '0.8rem' }}>
-            Charts {selectedDeviceId ? `(${detail.data?.device?.displayName || selectedDeviceId})` : ''}
-          </h6>
-          <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-            {chartsExpanded ? '▲ Collapse' : '▼ Expand (loads on demand)'}
-          </span>
-        </Card.Header>
-        {chartsExpanded && (
-          <Card.Body>
-            {!selectedDeviceId ? (
-              <div className="text-muted text-center py-3">Select a tracker to load charts</div>
-            ) : (
-              <Suspense
-                fallback={
-                  <div className="text-center py-4">
-                    <Spinner animation="border" size="sm" />
-                  </div>
-                }
-              >
-                <Row className="g-2">
-                  <Col xs={12} md={6}>
-                    <div className="fw-semibold mb-1" style={{ fontSize: '0.75rem' }}>
-                      Speed (24h)
-                    </div>
-                    <TrackerSpeedChart series={stats.data?.series || []} loading={stats.loading} />
-                  </Col>
-                  <Col xs={12} md={6}>
-                    <div className="fw-semibold mb-1" style={{ fontSize: '0.75rem' }}>
-                      Moving minutes (24h)
-                    </div>
-                    <TrackerActivityChart
-                      series={stats.data?.series || []}
-                      loading={stats.loading}
-                    />
-                  </Col>
-                </Row>
-                {stats.error && (
-                  <Alert variant="warning" className="mt-2 py-2 mb-0" style={{ fontSize: '0.75rem' }}>
-                    {stats.error}
-                  </Alert>
+          <Row className="g-2 mb-3">
+            <Col xs={12} lg={6}>
+              <TrackerDetailsPanel
+                deviceId={selectedDeviceId}
+                detail={detail.data}
+                loading={detail.loading}
+              />
+            </Col>
+            <Col xs={12} lg={6}>
+              <TrackerRecentActivity
+                events={activity.data?.events || []}
+                loading={activity.loading && !activity.data}
+              />
+            </Col>
+          </Row>
+
+          <Card className="border-0 shadow-sm mb-3">
+            <Card.Header
+              className="py-2 bg-white d-flex justify-content-between align-items-center"
+              role="button"
+              onClick={() => setChartsExpanded((v) => !v)}
+            >
+              <h6 className="mb-0" style={{ fontSize: '0.8rem' }}>
+                Charts{' '}
+                {selectedDeviceId
+                  ? `(${detail.data?.device?.displayName || selectedDeviceId})`
+                  : ''}
+              </h6>
+              <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                {chartsExpanded ? '▲ Collapse' : '▼ Expand (loads on demand)'}
+              </span>
+            </Card.Header>
+            {chartsExpanded && (
+              <Card.Body>
+                {!selectedDeviceId ? (
+                  <div className="text-muted text-center py-3">Select a tracker to load charts</div>
+                ) : (
+                  <Suspense
+                    fallback={
+                      <div className="text-center py-4">
+                        <Spinner animation="border" size="sm" />
+                      </div>
+                    }
+                  >
+                    <Row className="g-2">
+                      <Col xs={12} md={6}>
+                        <div className="fw-semibold mb-1" style={{ fontSize: '0.75rem' }}>
+                          Speed (24h)
+                        </div>
+                        <TrackerSpeedChart
+                          series={stats.data?.series || []}
+                          loading={stats.loading}
+                        />
+                      </Col>
+                      <Col xs={12} md={6}>
+                        <div className="fw-semibold mb-1" style={{ fontSize: '0.75rem' }}>
+                          Moving minutes (24h)
+                        </div>
+                        <TrackerActivityChart
+                          series={stats.data?.series || []}
+                          loading={stats.loading}
+                        />
+                      </Col>
+                    </Row>
+                    {stats.error && (
+                      <Alert
+                        variant="warning"
+                        className="mt-2 py-2 mb-0"
+                        style={{ fontSize: '0.75rem' }}
+                      >
+                        {stats.error}
+                      </Alert>
+                    )}
+                  </Suspense>
                 )}
-              </Suspense>
+              </Card.Body>
             )}
-          </Card.Body>
-        )}
-      </Card>
+          </Card>
 
-      <TrackerFilters
-        show={showFilters}
-        onHide={() => setShowFilters(false)}
-        filters={filters}
-        onApply={setFilters}
-        onReset={resetFilters}
-      />
+          <TrackerFilters
+            show={showFilters}
+            onHide={() => setShowFilters(false)}
+            filters={filters}
+            onApply={setFilters}
+            onReset={resetFilters}
+          />
+        </>
+      )}
     </Col>
   );
 }

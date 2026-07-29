@@ -1,15 +1,52 @@
 .wrap {
   height: 100%;
   min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--gsn-surface-card, #fff);
+  color: var(--gsn-text-primary, #0f172a);
+  border: 1px solid var(--gsn-border-primary, #e5e7eb);
+}
+
+.fillHeight {
+  min-height: 0;
+  height: 100%;
 }
 
 .mapBox {
   height: 300px;
+  flex: 0 0 auto;
+}
+
+.mapBoxFill {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
 }
 
 .marker {
   background: transparent;
   border: none;
+}
+
+.modeToggle {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--gsn-text-secondary, #334155) !important;
+  text-decoration: none !important;
+}
+
+.modeToggle:hover,
+.modeToggle:focus,
+.modeToggle:active {
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--gsn-brand-primary, #4db3b3) !important;
+  text-decoration: none !important;
+  background: transparent !important;
 }
 
 @media (min-width: 992px) {
