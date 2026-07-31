@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('../controllers/trackerController');
+const analyticsController = require('../controllers/analyticsController');
 const { trackerErrorHandler } = require('../middleware/trackerErrorHandler');
 
 const router = express.Router();
@@ -15,6 +16,13 @@ router.get('/devices/:id/history', controller.getHistory);
 router.get('/devices/:id/statistics', controller.getStatistics);
 router.get('/devices/:id/journey', controller.getJourney);
 router.get('/activity', controller.getActivity);
+
+// ✅ Fleet Analytics
+router.get('/analytics/summary', analyticsController.getSummary);
+router.get('/analytics/vehicles', analyticsController.getVehicles);
+router.get('/analytics/rankings', analyticsController.getRankings);
+router.get('/analytics/vehicles/:id', analyticsController.getVehicleDetail);
+router.get('/analytics/export', analyticsController.getExport);
 
 router.use(trackerErrorHandler);
 

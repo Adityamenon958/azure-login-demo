@@ -59,6 +59,31 @@ const deviceSchema = new mongoose.Schema({
       message: 'IMEI must be 15 or 16 digits',
     },
   },
+
+  // ✅ Fleet Analytics — cumulative lifetime engine-ON (incremented by rollup job)
+  totalEngineMs: { type: Number, default: 0 },
+  engineMsUpdatedAt: { type: Date, default: null },
+  // ✅ Per-vehicle expected workload for utilization %
+  expectedDailyHours: { type: Number, default: 10, min: 0.5, max: 24 },
+  // ✅ Multi-strategy maintenance schedules (engineHours | distanceKm | calendar)
+  maintenanceSchedules: {
+    type: [
+      {
+        label: { type: String, required: true, trim: true },
+        strategy: {
+          type: String,
+          enum: ['engineHours', 'distanceKm', 'calendar'],
+          required: true,
+        },
+        intervalValue: { type: Number, required: true, min: 0 },
+        lastDoneAt: { type: Date, default: null },
+        lastDoneEngineMs: { type: Number, default: 0 },
+        lastDoneOdometerKm: { type: Number, default: 0 },
+        active: { type: Boolean, default: true },
+      },
+    ],
+    default: [],
+  },
 }, { timestamps: true });
 
 deviceSchema.index(

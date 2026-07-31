@@ -53,6 +53,11 @@ const {
 const demoLiveDataRouter = require('./backend/routes/demoLiveData');
 const trackerRoutes = require('./backend/tracker/routes/trackerRoutes');
 const {
+  runNightlyRollup,
+  runCatchUp,
+} = require('./backend/tracker/analytics/rollupJob');
+const cron = require('node-cron');
+const {
   parseSampleValueString,
   extractMeterEntries,
   resolveDeviceForMeter,
@@ -8849,6 +8854,26 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
+  // ✅ Fleet Analytics rollups — previous IST day at 00:15 IST (= 18:45 UTC previous calendar day)
+  // Cron expression is in server local/UTC; use 18:45 UTC ≈ 00:15 IST
+  try {
+    cron.schedule('45 18 * * *', () => {
+      runNightlyRollup().catch((err) =>
+        console.error('[tracker-rollup] nightly failed', err.message)
+      );
+    });
+    console.log('✅ Tracker analytics nightly rollup scheduled (18:45 UTC / ~00:15 IST)');
+
+    // Startup catch-up (non-blocking) — fill up to 14 recent missing days
+    setTimeout(() => {
+      runCatchUp({ maxDays: 14 }).catch((err) =>
+        console.error('[tracker-rollup] catch-up failed', err.message)
+      );
+    }, 8000);
+  } catch (err) {
+    console.error('❌ Failed to schedule tracker rollup', err.message);
+  }
 });
 
 // Removed duplicate late sessions route (handled by EARLY route above)

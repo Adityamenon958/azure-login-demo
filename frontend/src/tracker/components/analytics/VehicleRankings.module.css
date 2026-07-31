@@ -1,0 +1,74 @@
+.wrap {
+  background: var(--gsn-surface-card, #fff);
+  border: 1px solid var(--gsn-border-primary, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  padding: 12px;
+  height: 100%;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  width: 100%;
+  text-align: left;
+}
+
+.row:hover {
+  background: #f8fafc;
+}
+
+.name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.meta {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0d6efd;
+}
+
+.empty {
+  color: #64748b;
+  font-size: 0.8rem;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.barTrack {
+  height: 4px;
+  background: #eef2f7;
+  border-radius: 999px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: #0d6efd;
+  border-radius: 999px;
+}
