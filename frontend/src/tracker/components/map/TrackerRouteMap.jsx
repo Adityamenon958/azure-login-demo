@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -6,6 +6,7 @@ import { Form, Spinner } from 'react-bootstrap';
 import { STATUS_COLORS, STATUS_LABELS } from '../../constants/trackerStatus';
 import { formatCoords, formatDurationMs, formatIst, formatSpeed } from '../../utils/formatters';
 import { getGoogleMapsUrl, isValidCoordinates } from '../../utils/mapHelpers';
+import ScrollWheelZoomOnFocus from './ScrollWheelZoomOnFocus';
 import styles from './TrackerRouteMap.module.css';
 
 function makeDivIcon(label, color) {
@@ -50,6 +51,54 @@ function FollowLive({ enabled, liveLat, liveLon }) {
   return null;
 }
 
+/**
+ * ✅ When timeline/event selects a point, fly the map there (with time popup).
+ * `nonce` bumps on every click so re-selecting the same row still re-focuses.
+ */
+function FocusSelection({ lat, lon, nonce, zoom = 15 }) {
+  const map = useMap();
+  useEffect(() => {
+    if (nonce == null || nonce === 0) return;
+    if (!isValidCoordinates(lat, lon)) return;
+    const targetZoom = Math.max(map.getZoom(), zoom);
+    map.flyTo([Number(lat), Number(lon)], targetZoom, { duration: 0.5 });
+  }, [lat, lon, nonce, zoom, map]);
+  return null;
+}
+
+function SelectedPointMarker({ point }) {
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (!point || !markerRef.current) return;
+    // Open after Leaflet mounts the marker / finishes flyTo
+    const id = window.setTimeout(() => {
+      markerRef.current?.openPopup?.();
+    }, 350);
+    return () => window.clearTimeout(id);
+  }, [point?.lat, point?.lon, point?.t, point?.title]);
+
+  if (!point || !isValidCoordinates(point.lat, point.lon)) return null;
+
+  return (
+    <CircleMarker
+      ref={markerRef}
+      center={[point.lat, point.lon]}
+      radius={9}
+      pathOptions={{ color: '#0f172a', fillColor: '#38bdf8', fillOpacity: 1, weight: 2 }}
+    >
+      <Popup>
+        <div style={{ fontSize: '0.75rem', minWidth: 120 }}>
+          <div className="fw-bold">{point.title || 'Selected'}</div>
+          <div>{formatIst(point.t)}</div>
+          {point.speed != null && <div>{formatSpeed(point.speed)}</div>}
+          <div className="text-muted">{formatCoords(point.lat, point.lon)}</div>
+        </div>
+      </Popup>
+    </CircleMarker>
+  );
+}
+
 const StopMarker = memo(function StopMarker({ stop, selected, onSelect }) {
   const color = stop.kind === 'idle' ? STATUS_COLORS.idle : STATUS_COLORS.parked;
   return (
@@ -90,6 +139,8 @@ export default function TrackerRouteMap({
   fitTrigger = 0,
   selectedStopId,
   selectedPathIndex,
+  focusNonce = 0,
+  focusMeta = null,
   onSelectStop,
   onSelectPathIndex,
 }) {
@@ -98,6 +149,11 @@ export default function TrackerRouteMap({
   const [showLive, setShowLive] = useState(true);
   const [followLive, setFollowLive] = useState(false);
   const [localFitKey, setLocalFitKey] = useState(0);
+
+  // ✅ Timeline / stop focus should not fight "Follow live"
+  useEffect(() => {
+    if (focusNonce > 0) setFollowLive(false);
+  }, [focusNonce]);
 
   const positions = useMemo(() => path.map((p) => [p.lat, p.lon]), [path]);
   const center = useMemo(() => {
@@ -114,6 +170,42 @@ export default function TrackerRouteMap({
   const hasLiveCoords = isValidCoordinates(liveState?.latitude, liveState?.longitude);
   const combinedFitTrigger = fitTrigger + localFitKey;
   const showMap = path.length > 0 || loading;
+
+  // ✅ Resolve highlight point: path index → stop → explicit focus coords from timeline
+  const selectedPoint = useMemo(() => {
+    if (selectedPathIndex != null && path[selectedPathIndex]) {
+      const p = path[selectedPathIndex];
+      return {
+        lat: p.lat,
+        lon: p.lon,
+        t: p.t,
+        speed: p.speed,
+        title: focusMeta?.title || 'Point on route',
+      };
+    }
+    if (selectedStopId) {
+      const stop = stops.find((s) => s.id === selectedStopId);
+      if (stop && isValidCoordinates(stop.lat, stop.lon)) {
+        return {
+          lat: stop.lat,
+          lon: stop.lon,
+          t: stop.arrivedAt,
+          speed: null,
+          title: focusMeta?.title || (stop.kind === 'idle' ? 'Idle' : 'Parked'),
+        };
+      }
+    }
+    if (focusMeta && isValidCoordinates(focusMeta.lat, focusMeta.lon)) {
+      return {
+        lat: focusMeta.lat,
+        lon: focusMeta.lon,
+        t: focusMeta.t,
+        speed: focusMeta.speed ?? null,
+        title: focusMeta.title || 'Selected',
+      };
+    }
+    return null;
+  }, [selectedPathIndex, path, selectedStopId, stops, focusMeta]);
 
   return (
     <div className={styles.wrap}>
@@ -181,16 +273,28 @@ export default function TrackerRouteMap({
                 <Spinner animation="border" size="sm" />
               </div>
             )}
-            <MapContainer center={center} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl>
+            <MapContainer
+              center={center}
+              zoom={12}
+              style={{ height: '100%', width: '100%' }}
+              zoomControl
+              scrollWheelZoom={false}
+            >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              <ScrollWheelZoomOnFocus />
               <FitBounds bounds={bounds} path={path} trigger={combinedFitTrigger} />
               <FollowLive
                 enabled={followLive && hasLiveCoords}
                 liveLat={liveState?.latitude}
                 liveLon={liveState?.longitude}
+              />
+              <FocusSelection
+                lat={selectedPoint?.lat}
+                lon={selectedPoint?.lon}
+                nonce={focusNonce}
               />
               {showPath && positions.length > 1 && (
                 <Polyline
@@ -262,20 +366,7 @@ export default function TrackerRouteMap({
                   </Popup>
                 </Marker>
               )}
-              {selectedPathIndex != null && path[selectedPathIndex] && (
-                <CircleMarker
-                  center={[path[selectedPathIndex].lat, path[selectedPathIndex].lon]}
-                  radius={8}
-                  pathOptions={{ color: '#0f172a', fillColor: '#38bdf8', fillOpacity: 1, weight: 2 }}
-                >
-                  <Popup>
-                    <div style={{ fontSize: '0.75rem' }}>
-                      <div>{formatIst(path[selectedPathIndex].t)}</div>
-                      <div>{formatSpeed(path[selectedPathIndex].speed)}</div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              )}
+              <SelectedPointMarker point={selectedPoint} />
             </MapContainer>
           </>
         )}

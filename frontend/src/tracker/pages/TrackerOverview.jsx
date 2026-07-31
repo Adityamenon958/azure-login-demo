@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, Row, Spinner } from 'react-bootstrap';
+import { Alert, Card, Col, Row, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { TrackerSelectionProvider, useTrackerSelection } from '../context/TrackerSelectionContext';
 import { useTrackerOverview } from '../hooks/useTrackerOverview';
@@ -21,6 +21,7 @@ import TrackerRecentActivity from '../components/activity/TrackerRecentActivity'
 import TrackerFilters from '../components/filters/TrackerFilters';
 import TrackerFilterChips from '../components/filters/TrackerFilterChips';
 import TrackerFab from '../components/filters/TrackerFab';
+import TrackerTopNav from '../components/nav/TrackerTopNav';
 import FleetMapMode from './FleetMapMode';
 import styles from '../styles/TrackerOverview.module.css';
 
@@ -112,25 +113,12 @@ function TrackerOverviewInner() {
 
   return (
     <Col xs={12} md={9} lg={10} xl={10} className={`${styles.page} p-3`}>
-      <div className="mb-2 d-flex justify-content-between align-items-start flex-wrap gap-2">
-        <div>
-          <h6 className="mb-0" style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-            {isFleetMap ? 'Fleet Map' : 'Tracker Overview'}
-          </h6>
-          <div className="d-flex align-items-center gap-2 text-muted" style={{ fontSize: '0.75rem' }}>
-            <span>
-              Last updated:{' '}
-              {lastUpdated
-                ? lastUpdated.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
-                : '—'}
-            </span>
-            <Button variant="link" size="sm" className="p-0" onClick={handleRefresh}>
-              Refresh
-            </Button>
-          </div>
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          {!isFleetMap && (
+      {/* ✅ Single header bar: module navigation + refresh + filter actions */}
+      <TrackerTopNav
+        lastUpdated={lastUpdated}
+        onRefresh={handleRefresh}
+        rightContent={
+          !isFleetMap && (
             <>
               <TrackerFilterChips filters={filters} onClick={() => setShowFilters(true)} />
               <TrackerFab
@@ -138,9 +126,9 @@ function TrackerOverviewInner() {
                 onExportClick={handleExportStub}
               />
             </>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {(overview.error || live.error) && (
         <Alert variant="warning" className="py-2" style={{ fontSize: '0.8rem' }}>

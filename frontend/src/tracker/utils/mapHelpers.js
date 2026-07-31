@@ -1,3 +1,8 @@
+/** Street / neighbourhood zoom when focusing one vehicle */
+export const MAP_FOCUS_ZOOM = 15;
+/** Cap for Fit All / initial fleet bounds (avoids over-zooming on one point) */
+export const MAP_FIT_MAX_ZOOM = 14;
+
 export function isValidCoordinates(lat, lon) {
   const latNum = Number(lat);
   const lonNum = Number(lon);
@@ -27,4 +32,32 @@ export function averageCenter(locations) {
   const lon =
     valid.reduce((s, l) => s + Number(l.longitude), 0) / valid.length;
   return [lat, lon];
+}
+
+/** Valid [lat, lon] pairs for Leaflet bounds / markers */
+export function toLatLngs(locations) {
+  return (locations || [])
+    .filter((l) => isValidCoordinates(l.latitude, l.longitude))
+    .map((l) => [Number(l.latitude), Number(l.longitude)]);
+}
+
+/** ✅ Zoom map to one vehicle (select / Centre Map) */
+export function focusMapOnPoint(map, lat, lon, zoom = MAP_FOCUS_ZOOM) {
+  if (!map || !isValidCoordinates(lat, lon)) return;
+  map.flyTo([Number(lat), Number(lon)], zoom, { duration: 0.45 });
+}
+
+/** ✅ Frame all valid vehicles (Fit All / first load) */
+export function fitMapToLocations(map, locations, options = {}) {
+  if (!map) return false;
+  const latLngs = toLatLngs(locations);
+  if (latLngs.length === 0) return false;
+  const maxZoom = options.maxZoom ?? MAP_FIT_MAX_ZOOM;
+  const padding = options.padding ?? [40, 40];
+  if (latLngs.length === 1) {
+    map.setView(latLngs[0], maxZoom);
+  } else {
+    map.fitBounds(latLngs, { padding, maxZoom });
+  }
+  return true;
 }

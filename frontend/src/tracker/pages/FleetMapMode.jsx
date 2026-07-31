@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerSelection } from '../context/TrackerSelectionContext';
 import { filterDevices } from '../utils/filterDevices';
-import { isValidCoordinates } from '../utils/mapHelpers';
+import { focusMapOnPoint } from '../utils/mapHelpers';
 import { useTimestampTick } from '../hooks/useTimestampTick';
 import FleetSummary from '../components/fleetMap/FleetSummary';
 import FleetMapFilterBar from '../components/fleetMap/FleetMapFilterBar';
@@ -87,10 +87,8 @@ export default function FleetMapMode({
         const next = prev === id ? null : id;
         if (next) {
           const row = mergedDevices.find((d) => d.deviceId === next);
-          const map = mapRef.current;
-          if (map && row && isValidCoordinates(row.latitude, row.longitude)) {
-            map.panTo([row.latitude, row.longitude]);
-          }
+          // ✅ Zoom in to the vehicle — pan alone left the map stuck at continental zoom
+          if (row) focusMapOnPoint(mapRef.current, row.latitude, row.longitude);
         }
         return next;
       });
@@ -101,24 +99,20 @@ export default function FleetMapMode({
   const handleMapSelect = useCallback(
     (id) => {
       setSelectedDeviceId(id);
-      const row = mergedDevices.find((d) => d.deviceId === id) || locations.find((l) => l.deviceId === id);
-      const map = mapRef.current;
-      if (map && row && isValidCoordinates(row.latitude, row.longitude)) {
-        map.panTo([row.latitude, row.longitude]);
-      }
+      const row =
+        mergedDevices.find((d) => d.deviceId === id) ||
+        locations.find((l) => l.deviceId === id);
+      if (row) focusMapOnPoint(mapRef.current, row.latitude, row.longitude);
     },
     [mergedDevices, locations, setSelectedDeviceId]
   );
 
   const handleCenterMap = useCallback(() => {
-    const map = mapRef.current;
     const lat =
       detail?.state?.latitude ?? detail?.liveState?.latitude ?? selectedFallback?.latitude;
     const lon =
       detail?.state?.longitude ?? detail?.liveState?.longitude ?? selectedFallback?.longitude;
-    if (map && isValidCoordinates(lat, lon)) {
-      map.panTo([lat, lon]);
-    }
+    focusMapOnPoint(mapRef.current, lat, lon);
   }, [detail, selectedFallback]);
 
   const handleOpenDetail = useCallback(() => {

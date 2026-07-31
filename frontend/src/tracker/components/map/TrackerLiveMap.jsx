@@ -1,13 +1,18 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button, Spinner } from 'react-bootstrap';
 import { LayoutGrid, Scan } from 'lucide-react';
 import { STATUS_COLORS, STATUS_LABELS, normalizeStatus } from '../../constants/trackerStatus';
-import { averageCenter, isValidCoordinates } from '../../utils/mapHelpers';
+import {
+  averageCenter,
+  fitMapToLocations,
+  isValidCoordinates,
+} from '../../utils/mapHelpers';
 import { filterLocations } from '../../utils/filterDevices';
 import TrackerStatusBadge from '../status/TrackerStatusBadge';
+import ScrollWheelZoomOnFocus from './ScrollWheelZoomOnFocus';
 import styles from './TrackerLiveMap.module.css';
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -36,13 +41,21 @@ function getStatusIcon(status) {
   return icon;
 }
 
-function FitOnce({ center, shouldFit }) {
+/**
+ * ✅ First load: frame real markers (not continental zoom=5).
+ * Runs once when we first have valid GPS points.
+ */
+function FitBoundsOnce({ locations }) {
   const map = useMap();
+  const didFitRef = useRef(false);
+
   useEffect(() => {
-    if (shouldFit && center) {
-      map.setView(center, map.getZoom() || 5);
+    if (didFitRef.current) return;
+    if (fitMapToLocations(map, locations)) {
+      didFitRef.current = true;
     }
-  }, [shouldFit, center, map]);
+  }, [locations, map]);
+
   return null;
 }
 
@@ -124,7 +137,6 @@ export default function TrackerLiveMap({
   viewMode = 'dashboard',
   onToggleViewMode,
 }) {
-  const [fitted, setFitted] = useState(false);
   const mapRef = useRef(null);
 
   const visibleLocations = useMemo(
@@ -133,10 +145,6 @@ export default function TrackerLiveMap({
   );
 
   const center = useMemo(() => averageCenter(visibleLocations), [visibleLocations]);
-
-  useEffect(() => {
-    if (!fitted && visibleLocations.length > 0) setFitted(true);
-  }, [visibleLocations, fitted]);
 
   const handleMapReady = useCallback(
     (map) => {
@@ -147,13 +155,7 @@ export default function TrackerLiveMap({
   );
 
   const handleFitAll = useCallback(() => {
-    const map = mapRef.current;
-    if (!map || visibleLocations.length === 0) return;
-    const latLngs = visibleLocations
-      .filter((l) => isValidCoordinates(l.latitude, l.longitude))
-      .map((l) => [l.latitude, l.longitude]);
-    if (latLngs.length === 0) return;
-    map.fitBounds(latLngs, { padding: [28, 28], maxZoom: 14 });
+    fitMapToLocations(mapRef.current, visibleLocations, { padding: [28, 28] });
   }, [visibleLocations]);
 
   return (
@@ -202,17 +204,20 @@ export default function TrackerLiveMap({
       <div className={fillHeight ? styles.mapBoxFill : styles.mapBox}>
         <MapContainer
           center={center}
-          zoom={5}
+          zoom={12}
           style={{ height: '100%', width: '100%' }}
           zoomControl
+          scrollWheelZoom={false}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <ScrollWheelZoomOnFocus />
           <MapReadyBridge onMapReady={handleMapReady} />
           <MapClickDeselect onDeselect={onDeselect} />
-          <FitOnce center={center} shouldFit={!fitted && visibleLocations.length > 0} />
+          {/* ✅ Frame vehicles on first valid GPS — not stuck at continental zoom */}
+          <FitBoundsOnce locations={visibleLocations} />
           {visibleLocations.map((loc) => (
             <TrackerMarker
               key={loc.deviceId}

@@ -25,6 +25,7 @@ import SimulatorRouteGuard from './components/SimulatorRouteGuard';
 import LiveDataDemo from './pages/demo/LiveDataDemo';
 import TrackerOverview from './tracker/pages/TrackerOverview';
 import TrackerDeviceDetail from './tracker/pages/TrackerDeviceDetail';
+import FleetAnalytics from './tracker/pages/FleetAnalytics';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -67,6 +68,12 @@ function App() {
         <Route path="tracker/:deviceId" element={
           <RouteGuard requiredAccess="trackerOverview">
             <TrackerDeviceDetail />
+          </RouteGuard>
+        } />
+        {/* ✅ Fleet Analytics — placeholder page under the Tracker module */}
+        <Route path="fleet-analytics" element={
+          <RouteGuard requiredAccess="trackerOverview">
+            <FleetAnalytics />
           </RouteGuard>
         } />
         

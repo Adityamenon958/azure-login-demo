@@ -19,7 +19,6 @@ import VehicleRangeBar from '../components/detail/VehicleRangeBar';
 import VehicleLiveStrip from '../components/detail/VehicleLiveStrip';
 import VehicleTripStats from '../components/detail/VehicleTripStats';
 import VehicleTimeline from '../components/detail/VehicleTimeline';
-import VehicleEvents from '../components/detail/VehicleEvents';
 import VehicleHealth from '../components/detail/VehicleHealth';
 import VehicleRawPoints from '../components/detail/VehicleRawPoints';
 import TrackerRouteMap from '../components/map/TrackerRouteMap';
@@ -58,10 +57,12 @@ export default function TrackerDeviceDetail() {
   const [selectedTimelineId, setSelectedTimelineId] = useState(null);
   const [selectedStopId, setSelectedStopId] = useState(null);
   const [selectedPathIndex, setSelectedPathIndex] = useState(null);
-  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [focusNonce, setFocusNonce] = useState(0);
+  const [focusMeta, setFocusMeta] = useState(null);
   // ✅ Only bump on user-driven range changes / Fit — not on 60s soft slides
   const [fitTrigger, setFitTrigger] = useState(0);
   const initialFitDone = React.useRef(false);
+  const mapSectionRef = React.useRef(null);
 
   const detail = useTrackerDevice(decodedId, DEVICE_DETAIL_POLL_MS);
   const journey = useTrackerJourney(decodedId, applied.from, applied.to);
@@ -103,17 +104,13 @@ export default function TrackerDeviceDetail() {
   useEffect(() => {
     const stops = journey.data?.stops || [];
     const timeline = journey.data?.timeline || [];
-    const events = journey.data?.events || [];
     if (selectedStopId && !stops.some((s) => s.id === selectedStopId)) {
       setSelectedStopId(null);
     }
     if (selectedTimelineId && !timeline.some((t) => t.id === selectedTimelineId)) {
       setSelectedTimelineId(null);
     }
-    if (selectedEventId && !events.some((e) => e.id === selectedEventId)) {
-      setSelectedEventId(null);
-    }
-  }, [journey.data, selectedStopId, selectedTimelineId, selectedEventId]);
+  }, [journey.data, selectedStopId, selectedTimelineId]);
 
   // ✅ First journey path → fit once (soft slides do not bump fitTrigger)
   useEffect(() => {
@@ -134,6 +131,7 @@ export default function TrackerDeviceDetail() {
     setSelectedTimelineId(null);
     setSelectedStopId(null);
     setSelectedPathIndex(null);
+    setFocusMeta(null);
     setFitTrigger((n) => n + 1);
   }, []);
 
@@ -146,6 +144,7 @@ export default function TrackerDeviceDetail() {
     setSelectedTimelineId(null);
     setSelectedStopId(null);
     setSelectedPathIndex(null);
+    setFocusMeta(null);
     setFitTrigger((n) => n + 1);
   }, [customFromLocal, customToLocal]);
 
@@ -169,9 +168,48 @@ export default function TrackerDeviceDetail() {
   const focusItem = (item) => {
     if (!item) return;
     setSelectedTimelineId(item.id);
-    setSelectedEventId(item.id);
-    if (item.refs?.stopId) setSelectedStopId(item.refs.stopId);
-    if (item.refs?.pathIndex != null) setSelectedPathIndex(item.refs.pathIndex);
+
+    const stops = journey.data?.stops || [];
+    const path = journey.data?.path || [];
+
+    let stopId = item.refs?.stopId || null;
+    if (stopId) setSelectedStopId(stopId);
+    else setSelectedStopId(null);
+
+    // Prefer explicit path index from journey; else stop's pathIndex; else nearest by time
+    let pathIdx = item.refs?.pathIndex ?? null;
+    if (pathIdx == null && stopId) {
+      const stop = stops.find((s) => s.id === stopId);
+      if (stop?.pathIndex != null) pathIdx = stop.pathIndex;
+    }
+    if (pathIdx == null && item.timestamp && path.length > 0) {
+      const target = new Date(item.timestamp).getTime();
+      let best = 0;
+      let bestDist = Infinity;
+      path.forEach((p, i) => {
+        const d = Math.abs(new Date(p.t).getTime() - target);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      });
+      pathIdx = best;
+    }
+    setSelectedPathIndex(pathIdx);
+
+    setFocusMeta({
+      title: item.title || item.type,
+      t: item.timestamp,
+      lat: item.lat,
+      lon: item.lon,
+      speed: null,
+    });
+    setFocusNonce((n) => n + 1);
+
+    // Timeline sits below the map — scroll up so the pin is visible
+    requestAnimationFrame(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const onSelectStop = (stop) => {
@@ -181,6 +219,14 @@ export default function TrackerDeviceDetail() {
       setSelectedTimelineId(match.id);
     }
     if (stop.pathIndex != null) setSelectedPathIndex(stop.pathIndex);
+    setFocusMeta({
+      title: stop.kind === 'idle' ? 'Idle' : 'Parked',
+      t: stop.arrivedAt,
+      lat: stop.lat,
+      lon: stop.lon,
+      speed: null,
+    });
+    setFocusNonce((n) => n + 1);
   };
 
   const state = detail.data?.state;
@@ -234,7 +280,7 @@ export default function TrackerDeviceDetail() {
 
       <VehicleLiveStrip state={state} deviceModel={detail.data?.device?.deviceModel} />
 
-      <Row className="g-2 mb-3">
+      <Row className="g-2 mb-3" ref={mapSectionRef}>
         <Col xs={12} lg={8}>
           <TrackerRouteMap
             path={journey.data?.path || []}
@@ -246,8 +292,23 @@ export default function TrackerDeviceDetail() {
             fitTrigger={fitTrigger}
             selectedStopId={selectedStopId}
             selectedPathIndex={selectedPathIndex}
+            focusNonce={focusNonce}
+            focusMeta={focusMeta}
             onSelectStop={onSelectStop}
-            onSelectPathIndex={setSelectedPathIndex}
+            onSelectPathIndex={(idx) => {
+              setSelectedPathIndex(idx);
+              const p = journey.data?.path?.[idx];
+              if (p) {
+                setFocusMeta({
+                  title: 'Point on route',
+                  t: p.t,
+                  lat: p.lat,
+                  lon: p.lon,
+                  speed: p.speed,
+                });
+                setFocusNonce((n) => n + 1);
+              }
+            }}
           />
         </Col>
         <Col xs={12} lg={4}>
@@ -263,14 +324,7 @@ export default function TrackerDeviceDetail() {
         loading={journey.loading && !journey.data}
         selectedId={selectedTimelineId}
         onSelect={focusItem}
-      />
-
-      <VehicleEvents
-        events={journey.data?.events || []}
-        loading={journey.loading && !journey.data}
         deviceModel={detail.data?.device?.deviceModel}
-        selectedId={selectedEventId}
-        onSelect={focusItem}
       />
 
       <div
