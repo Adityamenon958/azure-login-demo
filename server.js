@@ -16,6 +16,8 @@ const Device = require('./backend/models/Device');
 const User = require('./backend/models/User');
 const LevelSensor = require('./backend/models/LevelSensor');
 const SimulatorDevice = require('./backend/models/SimulatorDevice');
+const AvlRecord = require('./backend/models/AvlRecord');
+const gpsTrackerSim = require('./backend/utils/gpsTrackerSim');
 
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
@@ -55,7 +57,11 @@ const trackerRoutes = require('./backend/tracker/routes/trackerRoutes');
 const {
   runNightlyRollup,
   runCatchUp,
+  backfillRange,
 } = require('./backend/tracker/analytics/rollupJob');
+
+// ✅ GPS fleet simulator tick intervals (prefer 60s+ for large fleets)
+const GPS_SIM_INTERVALS_SECONDS = [30, 60, 120];
 const cron = require('node-cron');
 const {
   parseSampleValueString,
@@ -250,9 +256,124 @@ function attachSimulatorTimer(deviceId, device) {
 }
 
 function getSimulatorIntervalLabel(device) {
-  return device.deviceType === 'energyMeter'
-    ? `${device.intervalSeconds || 60}s`
-    : `${device.frequencyMinutes}m`;
+  const type = device.deviceType || 'crane';
+  if (type === 'energyMeter' || type === 'gpsTracker') {
+    return `${device.intervalSeconds || 60}s`;
+  }
+  return `${device.frequencyMinutes}m`;
+}
+
+/** Build company-prefix UID like Add Devices UI (e.g. GS-Truck1). */
+function buildSimUidFromCompany(companyName, deviceId) {
+  const prefix = String(companyName || 'GS')
+    .split(' ')
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase() || 'GS';
+  return `${prefix}-${deviceId}`;
+}
+
+/**
+ * Resolve waypoints from add/update body (Mode 1 coords or Mode 2 place search).
+ * Engine always receives lat/lon only.
+ */
+function resolveGpsWaypointsFromBody(body = {}) {
+  const defaults = gpsTrackerSim.applyProfileDefaults(body);
+  const baseLat = body.latitude != null ? Number(body.latitude) : 19.04598;
+  const baseLon = body.longitude != null ? Number(body.longitude) : 73.027397;
+  const stop = defaults.defaultStopMinutes;
+
+  let custom = [];
+
+  if (Array.isArray(body.placeQueries) && body.placeQueries.length >= 2) {
+    custom = body.placeQueries.map((q, i) => {
+      const resolved = gpsTrackerSim.resolvePlace(q, { regionHint: { lat: baseLat, lon: baseLon } });
+      return {
+        id: `wp-${i}`,
+        name: resolved.label,
+        lat: resolved.lat,
+        lon: resolved.lon,
+        stopDurationMinutes: stop,
+        placeQuery: String(q).trim(),
+      };
+    });
+  } else if (Array.isArray(body.waypoints) && body.waypoints.length >= 2) {
+    custom = body.waypoints.map((w, i) => {
+      if (w && w.lat != null && w.lon != null && Number.isFinite(Number(w.lat)) && Number.isFinite(Number(w.lon))) {
+        return {
+          id: w.id || `wp-${i}`,
+          name: w.name || `Stop ${i + 1}`,
+          lat: Number(w.lat),
+          lon: Number(w.lon),
+          stopDurationMinutes: w.stopDurationMinutes != null ? Number(w.stopDurationMinutes) : stop,
+          placeQuery: w.placeQuery || w.name || '',
+        };
+      }
+      const q = (w && (w.placeQuery || w.name)) || '';
+      const resolved = gpsTrackerSim.resolvePlace(q, { regionHint: { lat: baseLat, lon: baseLon } });
+      if (!resolved) return null;
+      return {
+        id: (w && w.id) || `wp-${i}`,
+        name: resolved.label,
+        lat: resolved.lat,
+        lon: resolved.lon,
+        stopDurationMinutes: (w && w.stopDurationMinutes != null) ? Number(w.stopDurationMinutes) : stop,
+        placeQuery: q,
+      };
+    }).filter(Boolean);
+  }
+
+  const useCustom = custom.length >= 2;
+  return gpsTrackerSim.buildWaypoints({
+    routeType: useCustom ? 'custom' : (defaults.routeType || 'multiStop'),
+    baseLat,
+    baseLon,
+    customWaypoints: useCustom ? custom : undefined,
+    defaultStopMinutes: stop,
+  });
+}
+
+/** Persist AvlRecord from one GPS fleet sim tick. */
+async function postGpsTrackerSimPayload(device) {
+  const deviceId = device.deviceId;
+  const realDevice = await Device.findOne({ deviceId, deviceType: 'gpsTracker' }).lean();
+  if (!realDevice) {
+    throw new Error(`Registered Device "${deviceId}" (gpsTracker) not found — re-add fleet sim`);
+  }
+
+  const intervalSeconds = device.intervalSeconds || 60;
+  const tickResult = gpsTrackerSim.advanceTick(device, { now: new Date(), intervalSeconds });
+  const avlDoc = gpsTrackerSim.buildAvlFromTick(device, realDevice._id, tickResult, new Date());
+
+  await AvlRecord.create(avlDoc);
+
+  const runtime = tickResult.runtime;
+  await SimulatorDevice.updateOne(
+    { deviceId },
+    {
+      fleetState: runtime.fleetState,
+      stateEnteredAt: runtime.stateEnteredAt,
+      currentWaypointIndex: runtime.currentWaypointIndex,
+      segmentProgress: runtime.segmentProgress,
+      currentLat: runtime.currentLat,
+      currentLon: runtime.currentLon,
+      currentSpeedKmh: runtime.currentSpeedKmh,
+      odometerMeters: runtime.odometerMeters,
+      tripDistanceMeters: runtime.tripDistanceMeters,
+      tripId: runtime.tripId,
+      overrideState: runtime.overrideState,
+      overrideTicksLeft: runtime.overrideTicksLeft,
+      latitude: runtime.currentLat,
+      longitude: runtime.currentLon,
+    }
+  );
+
+  recordTickSuccess(deviceId);
+  console.log(
+    `[sim] ✅ GPS ${deviceId}: ${tickResult.meta.state} → ${tickResult.meta.nextWaypointName} ` +
+    `@ [${runtime.currentLat.toFixed(5)}, ${runtime.currentLon.toFixed(5)}] ${runtime.currentSpeedKmh}km/h`
+  );
+  return { success: true, tickResult, avlDoc };
 }
 
 // Simulator profiles for state mapping
@@ -352,7 +473,8 @@ function buildElevatorPayload(device) {
 }
 
 function getSimulatorIntervalMs(device) {
-  if ((device.deviceType || 'crane') === 'energyMeter') {
+  const type = device.deviceType || 'crane';
+  if (type === 'energyMeter' || type === 'gpsTracker') {
     return (device.intervalSeconds || 60) * 1000;
   }
   return device.frequencyMinutes * 60 * 1000;
@@ -423,6 +545,11 @@ async function simulatorTick(deviceId) {
       return;
     }
 
+    if (deviceType === 'gpsTracker') {
+      await postGpsTrackerSimPayload(device);
+      return;
+    }
+
     if (deviceType === 'elevator') {
       const payload = [buildElevatorPayload(device)];
       await retryAsync(async () => {
@@ -470,13 +597,43 @@ async function simulatorTick(deviceId) {
 
 // ✅ Start simulator for a device
 async function startSimulator(deviceId) {
-  const device = await SimulatorDevice.findOne({ deviceId }).lean();
+  let device = await SimulatorDevice.findOne({ deviceId }).lean();
   if (!device) {
     throw new Error(`Device ${deviceId} not found in database`);
   }
 
   if (simulatorTimers.has(deviceId)) {
     throw new Error(`Device ${deviceId} is already running`);
+  }
+
+  // ✅ Fleet GPS: optional one-time history seed + rollup so Analytics Week is not empty
+  if (device.deviceType === 'gpsTracker' && device.seedDays > 0 && !device.seedCompleted) {
+    const realDevice = await Device.findOne({ deviceId, deviceType: 'gpsTracker' });
+    if (!realDevice) {
+      throw new Error(`Registered Device "${deviceId}" (gpsTracker) missing — cannot seed`);
+    }
+    console.log(`[sim] 🌱 Seeding ${device.seedDays} day(s) of AVL history for ${deviceId}…`);
+    const seedResult = await gpsTrackerSim.seedHistory(device, realDevice, {
+      days: device.seedDays,
+      pointsPerHour: 6,
+    });
+    if (seedResult.fromDay && seedResult.toDay) {
+      try {
+        await backfillRange(seedResult.fromDay, seedResult.toDay);
+        console.log(`[sim] 📊 Rollup backfill ${seedResult.fromDay} → ${seedResult.toDay}`);
+      } catch (rollupErr) {
+        console.error(`[sim] ⚠️ Rollup backfill failed (AVL still seeded):`, rollupErr.message);
+      }
+    }
+    await SimulatorDevice.updateOne(
+      { deviceId },
+      {
+        seedCompleted: true,
+        odometerMeters: seedResult.finalOdometer != null ? seedResult.finalOdometer : device.odometerMeters,
+      }
+    );
+    device = await SimulatorDevice.findOne({ deviceId }).lean();
+    console.log(`[sim] 🌱 Seed done for ${deviceId}: inserted=${seedResult.inserted}`);
   }
 
   attachSimulatorTimer(deviceId, device);
@@ -5564,7 +5721,7 @@ app.get('/api/sim/availability', authenticateToken, (req, res) => {
 
 // ✅ SIMULATOR ENDPOINTS (superadmin only, when enabled)
 if (ENABLE_SIMULATOR) {
-  // ✅ POST: Add simulated device (crane or elevator)
+  // ✅ POST: Add simulated device (crane, elevator, energyMeter, or gpsTracker)
   app.post('/api/sim/add', authenticateToken, async (req, res) => {
     try {
       const { role } = req.user;
@@ -5576,11 +5733,124 @@ if (ENABLE_SIMULATOR) {
         intervalSeconds, energyBaseReading, energySimMode, roomType, appliances, singleApplianceType,
         singleApplianceRatedKwOverride, singleStateDistribution, occupancyPercent, minVoltage, maxVoltage,
         scheduleTimezone } = req.body;
-      const effectiveType = deviceType === 'elevator' ? 'elevator' : deviceType === 'energyMeter' ? 'energyMeter' : 'crane';
+      const effectiveType =
+        deviceType === 'elevator' ? 'elevator'
+          : deviceType === 'energyMeter' ? 'energyMeter'
+            : deviceType === 'gpsTracker' ? 'gpsTracker'
+              : 'crane';
       const companyName = effectiveType === 'elevator'
         ? (elevatorCompany || craneCompany)
-        : craneCompany;
+        : (req.body.companyName || craneCompany);
       
+      // ✅ Fleet GPS uses behaviour profiles — skip crane/elevator state requirement
+      if (effectiveType === 'gpsTracker') {
+        if (!companyName || !DeviceID) {
+          return res.status(400).json({ error: 'Missing required fields (companyName, DeviceID)' });
+        }
+        const displayName = String(req.body.displayName || DeviceID).trim();
+        const deviceModel = ['FMB920', 'FMB125'].includes(req.body.deviceModel) ? req.body.deviceModel : 'FMB920';
+        let imei = String(req.body.imei || '').trim();
+        if (!imei) imei = gpsTrackerSim.generateSimImei();
+        if (!/^\d{15,16}$/.test(imei)) {
+          return res.status(400).json({ error: 'IMEI must be 15 or 16 digits' });
+        }
+        const existingSim = await SimulatorDevice.findOne({ deviceId: DeviceID });
+        if (existingSim) {
+          return res.status(409).json({ error: `Simulator device "${DeviceID}" already exists` });
+        }
+        const imeiTaken = await Device.findOne({ imei }).lean();
+        if (imeiTaken && imeiTaken.deviceId !== DeviceID) {
+          return res.status(409).json({ error: `IMEI "${imei}" is already registered` });
+        }
+
+        const defaults = gpsTrackerSim.applyProfileDefaults(req.body);
+        const intervalNum = parseInt(intervalSeconds, 10) || 60;
+        if (!GPS_SIM_INTERVALS_SECONDS.includes(intervalNum)) {
+          return res.status(400).json({ error: 'Invalid interval. Must be 30, 60, or 120 seconds' });
+        }
+
+        const baseLat = latitude != null ? Number(latitude) : 19.04598;
+        const baseLon = longitude != null ? Number(longitude) : 73.027397;
+        const finalWaypoints = resolveGpsWaypointsFromBody({
+          ...req.body,
+          ...defaults,
+          latitude: baseLat,
+          longitude: baseLon,
+        });
+        if (!finalWaypoints || finalWaypoints.length < 2) {
+          return res.status(400).json({ error: 'Need at least 2 waypoints (use route type template or Mode 1/2 list)' });
+        }
+
+        // Upsert real Device so Overview / Map / Analytics can find it
+        let registered = await Device.findOne({ deviceId: DeviceID, deviceType: 'gpsTracker' });
+        if (!registered) {
+          registered = await Device.findOne({ deviceId: DeviceID });
+        }
+        if (registered) {
+          registered.companyName = String(companyName).trim();
+          registered.deviceType = 'gpsTracker';
+          registered.imei = imei;
+          registered.deviceModel = deviceModel;
+          registered.displayName = displayName;
+          if (!registered.uid) registered.uid = buildSimUidFromCompany(companyName, DeviceID);
+          await registered.save();
+        } else {
+          registered = new Device({
+            companyName: String(companyName).trim(),
+            uid: buildSimUidFromCompany(companyName, DeviceID),
+            deviceId: DeviceID,
+            deviceType: 'gpsTracker',
+            deviceModel,
+            displayName,
+            imei,
+          });
+          await registered.save();
+        }
+
+        const seedDays = req.body.seedDays != null ? Math.max(0, Math.min(14, Number(req.body.seedDays))) : 0;
+        const device = new SimulatorDevice({
+          deviceId: DeviceID,
+          name: String(companyName).trim(),
+          companyName: String(companyName).trim(),
+          latitude: baseLat,
+          longitude: baseLon,
+          deviceType: 'gpsTracker',
+          location: '',
+          state: 'working',
+          frequencyMinutes: 1,
+          padTimestamp: false,
+          jitter: false,
+          profile: 'A',
+          isRunning: false,
+          imei,
+          displayName,
+          deviceModel,
+          vehicleClass: req.body.vehicleClass || 'car',
+          behaviourProfile: defaults.behaviourProfile,
+          routeType: defaults.routeType,
+          waypoints: finalWaypoints,
+          speedProfile: defaults.speedProfile,
+          workStart: defaults.workStart,
+          workEnd: defaults.workEnd,
+          lunchStart: defaults.lunchStart,
+          lunchMinutes: defaults.lunchMinutes,
+          defaultStopMinutes: defaults.defaultStopMinutes,
+          timezone: req.body.timezone || 'Asia/Kolkata',
+          intervalSeconds: intervalNum,
+          odometerMeters: req.body.odometerMeters != null ? Number(req.body.odometerMeters) : 0,
+          seedDays,
+          seedCompleted: false,
+          fleetState: 'OFFLINE',
+          currentWaypointIndex: 0,
+          segmentProgress: 0,
+          currentLat: finalWaypoints[0]?.lat ?? baseLat,
+          currentLon: finalWaypoints[0]?.lon ?? baseLon,
+        });
+        await device.save();
+        console.log(`[sim] ✅ Added gpsTracker simulator: ${DeviceID} (${defaults.behaviourProfile}) imei=${imei}`);
+        return res.json({ success: true, device: device.toObject(), registeredDeviceId: registered._id });
+      }
+
       if (effectiveType === 'energyMeter') {
         if (!DeviceID || !state) {
           return res.status(400).json({ error: 'Missing required fields (DeviceID, state)' });
@@ -5702,7 +5972,10 @@ if (ENABLE_SIMULATOR) {
       res.json({ success: true, device: device.toObject() });
     } catch (err) {
       console.error('[sim] ❌ Add device error:', err);
-      res.status(500).json({ error: 'Internal server error' });
+      if (isImeiDuplicateKeyError(err)) {
+        return res.status(409).json({ error: 'IMEI is already registered to another device' });
+      }
+      res.status(500).json({ error: err.message || 'Internal server error' });
     }
   });
   
@@ -5770,15 +6043,84 @@ if (ENABLE_SIMULATOR) {
       }
       
       const effectiveType = device.deviceType || 'crane';
-      const companyName = elevatorCompany !== undefined ? elevatorCompany : craneCompany;
-      if (companyName !== undefined && effectiveType !== 'energyMeter') device.name = companyName;
-      if (state && ['working', 'idle', 'maintenance'].includes(state)) device.state = state;
-      if (frequencyMinutes !== undefined && effectiveType !== 'energyMeter') {
+      const companyName = elevatorCompany !== undefined ? elevatorCompany : (req.body.companyName !== undefined ? req.body.companyName : craneCompany);
+      if (companyName !== undefined && effectiveType !== 'energyMeter') {
+        device.name = companyName;
+        if (effectiveType === 'gpsTracker') device.companyName = companyName;
+      }
+      if (state && ['working', 'idle', 'maintenance'].includes(state) && effectiveType !== 'gpsTracker') {
+        device.state = state;
+      }
+      if (frequencyMinutes !== undefined && effectiveType !== 'energyMeter' && effectiveType !== 'gpsTracker') {
         const freq = parseInt(frequencyMinutes, 10);
         if ([1, 2, 5, 10, 15, 30].includes(freq)) device.frequencyMinutes = freq;
       }
       if (effectiveType === 'elevator') {
         if (location !== undefined) device.location = String(location).trim();
+      } else if (effectiveType === 'gpsTracker') {
+        const defaults = gpsTrackerSim.applyProfileDefaults({
+          behaviourProfile: req.body.behaviourProfile || device.behaviourProfile,
+          routeType: req.body.routeType || device.routeType,
+          speedProfile: req.body.speedProfile || device.speedProfile,
+          workStart: req.body.workStart || device.workStart,
+          workEnd: req.body.workEnd || device.workEnd,
+          lunchStart: req.body.lunchStart || device.lunchStart,
+          lunchMinutes: req.body.lunchMinutes != null ? req.body.lunchMinutes : device.lunchMinutes,
+          defaultStopMinutes: req.body.defaultStopMinutes != null ? req.body.defaultStopMinutes : device.defaultStopMinutes,
+        });
+        Object.assign(device, {
+          behaviourProfile: defaults.behaviourProfile,
+          routeType: defaults.routeType,
+          speedProfile: defaults.speedProfile,
+          workStart: defaults.workStart,
+          workEnd: defaults.workEnd,
+          lunchStart: defaults.lunchStart,
+          lunchMinutes: defaults.lunchMinutes,
+          defaultStopMinutes: defaults.defaultStopMinutes,
+        });
+        if (req.body.displayName !== undefined) device.displayName = String(req.body.displayName).trim();
+        if (req.body.deviceModel && ['FMB920', 'FMB125'].includes(req.body.deviceModel)) {
+          device.deviceModel = req.body.deviceModel;
+        }
+        if (req.body.vehicleClass) device.vehicleClass = req.body.vehicleClass;
+        if (req.body.timezone) device.timezone = req.body.timezone;
+        if (intervalSeconds !== undefined) {
+          const sec = parseInt(intervalSeconds, 10);
+          if (GPS_SIM_INTERVALS_SECONDS.includes(sec)) device.intervalSeconds = sec;
+        }
+        if (req.body.seedDays != null && !device.seedCompleted) {
+          device.seedDays = Math.max(0, Math.min(14, Number(req.body.seedDays)));
+        }
+        if (
+          Array.isArray(req.body.waypoints)
+          || Array.isArray(req.body.placeQueries)
+          || latitude !== undefined
+          || longitude !== undefined
+          || req.body.routeType
+        ) {
+          const baseLat = latitude != null ? Number(latitude) : device.latitude;
+          const baseLon = longitude != null ? Number(longitude) : device.longitude;
+          device.latitude = baseLat;
+          device.longitude = baseLon;
+          device.waypoints = resolveGpsWaypointsFromBody({
+            ...req.body,
+            behaviourProfile: device.behaviourProfile,
+            routeType: device.routeType,
+            defaultStopMinutes: device.defaultStopMinutes,
+            latitude: baseLat,
+            longitude: baseLon,
+            waypoints: req.body.waypoints || device.waypoints,
+          });
+        }
+        // Keep registered Device in sync
+        await Device.updateOne(
+          { deviceId: DeviceID, deviceType: 'gpsTracker' },
+          {
+            ...(companyName !== undefined ? { companyName: String(companyName).trim() } : {}),
+            ...(req.body.displayName !== undefined ? { displayName: String(req.body.displayName).trim() } : {}),
+            ...(device.deviceModel ? { deviceModel: device.deviceModel } : {}),
+          }
+        );
       } else if (effectiveType === 'energyMeter') {
         const simErrors = validateEnergySimBody(req.body, { isUpdate: true });
         if (simErrors.length) {
@@ -5861,6 +6203,18 @@ if (ENABLE_SIMULATOR) {
           ? getOverrideRemainingMs(device.energyReadingOverride)
           : null,
         configSummary: device.deviceType === 'energyMeter' ? buildConfigSummary(device) : undefined,
+        fleetState: device.fleetState || null,
+        behaviourProfile: device.behaviourProfile || null,
+        nextWaypointName: (() => {
+          if (device.deviceType !== 'gpsTracker' || !Array.isArray(device.waypoints) || !device.waypoints.length) {
+            return null;
+          }
+          const idx = device.currentWaypointIndex || 0;
+          const next = device.waypoints[(idx + 1) % device.waypoints.length];
+          return next?.name || null;
+        })(),
+        currentLat: device.currentLat ?? device.latitude,
+        currentLon: device.currentLon ?? device.longitude,
         isRunning: device.isRunning === true,
         timerActive,
         lastTickAt: tickStatus?.lastTickAt || null,
@@ -5913,6 +6267,34 @@ if (ENABLE_SIMULATOR) {
     }
   });
 
+  // ✅ POST: Force fleet GPS state for N ticks (demo)
+  app.post('/api/sim/gps-override', authenticateToken, async (req, res) => {
+    try {
+      const { role } = req.user;
+      if (role !== 'superadmin') {
+        return res.status(403).json({ error: 'Access denied. Superadmin only.' });
+      }
+      const { DeviceID, overrideState, overrideTicksLeft } = req.body;
+      if (!DeviceID) return res.status(400).json({ error: 'DeviceID is required' });
+      const device = await SimulatorDevice.findOne({ deviceId: DeviceID });
+      if (!device) return res.status(404).json({ error: 'Device not found' });
+      if (device.deviceType !== 'gpsTracker') {
+        return res.status(400).json({ error: 'Only gpsTracker devices support fleet override' });
+      }
+      const allowed = ['OFFLINE', 'ENGINE_ON', 'MOVING', 'ARRIVED', 'IDLE', 'PARKED', 'RETURN_HOME', null, ''];
+      if (overrideState !== undefined && !allowed.includes(overrideState)) {
+        return res.status(400).json({ error: 'Invalid overrideState' });
+      }
+      device.overrideState = overrideState === '' || overrideState == null ? null : overrideState;
+      device.overrideTicksLeft = overrideTicksLeft != null ? Math.max(0, Number(overrideTicksLeft)) : 5;
+      await device.save();
+      res.json({ success: true, device: device.toObject() });
+    } catch (err) {
+      console.error('[sim] ❌ GPS override error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // ✅ GET: Energy simulator catalog (appliances, room presets)
   app.get('/api/sim/energy-catalog', authenticateToken, async (req, res) => {
     try {
@@ -5927,12 +6309,88 @@ if (ENABLE_SIMULATOR) {
     }
   });
 
-  // ✅ POST: Preview energy meter payload (no send)
+  // ✅ GET: Fleet GPS demo place catalog + behaviour profiles (for Mode 2 UI)
+  app.get('/api/sim/gps-catalog', authenticateToken, async (req, res) => {
+    try {
+      const { role } = req.user;
+      if (role !== 'superadmin') {
+        return res.status(403).json({ error: 'Access denied. Superadmin only.' });
+      }
+      res.json({
+        places: gpsTrackerSim.listDemoPlaces(),
+        profiles: gpsTrackerSim.listProfiles(),
+        routeTypes: ['circular', 'aToBReturn', 'multiStop', 'custom'],
+        speedProfiles: ['slow', 'city', 'highway', 'random'],
+        intervalsSeconds: GPS_SIM_INTERVALS_SECONDS,
+        deviceModels: ['FMB920', 'FMB125'],
+      });
+    } catch (err) {
+      console.error('[sim] ❌ GPS catalog error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ✅ POST: Resolve place query via geocode adapter (demo catalog in V1)
+  app.post('/api/sim/geocode', authenticateToken, async (req, res) => {
+    try {
+      const { role } = req.user;
+      if (role !== 'superadmin') {
+        return res.status(403).json({ error: 'Access denied. Superadmin only.' });
+      }
+      const { query, regionHint } = req.body || {};
+      const resolved = gpsTrackerSim.resolvePlace(query, { regionHint });
+      if (!resolved) return res.status(400).json({ error: 'Could not resolve place' });
+      res.json({ place: resolved });
+    } catch (err) {
+      console.error('[sim] ❌ Geocode error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ✅ POST: Preview energy meter OR fleet GPS tick (no send / no persist for GPS)
   app.post('/api/sim/preview-payload', authenticateToken, async (req, res) => {
     try {
       const { role } = req.user;
       if (role !== 'superadmin') {
         return res.status(403).json({ error: 'Access denied. Superadmin only.' });
+      }
+
+      // Fleet GPS preview
+      if (req.body.deviceType === 'gpsTracker' || req.body.previewType === 'gpsTracker') {
+        const defaults = gpsTrackerSim.applyProfileDefaults(req.body);
+        const baseLat = req.body.latitude != null ? Number(req.body.latitude) : 19.04598;
+        const baseLon = req.body.longitude != null ? Number(req.body.longitude) : 73.027397;
+        const waypoints = resolveGpsWaypointsFromBody({ ...req.body, ...defaults, latitude: baseLat, longitude: baseLon });
+        const sim = {
+          ...defaults,
+          imei: req.body.imei || '000000000000000',
+          latitude: baseLat,
+          longitude: baseLon,
+          waypoints,
+          fleetState: req.body.fleetState || 'OFFLINE',
+          currentWaypointIndex: 0,
+          segmentProgress: 0,
+          intervalSeconds: parseInt(req.body.intervalSeconds, 10) || 60,
+        };
+        const tickResult = gpsTrackerSim.advanceTick(sim, {
+          now: new Date(),
+          intervalSeconds: sim.intervalSeconds,
+        });
+        const sampleAvl = gpsTrackerSim.buildAvlFromTick(sim, null, tickResult, new Date());
+        return res.json({
+          deviceType: 'gpsTracker',
+          summary: {
+            state: tickResult.meta.state,
+            currentWaypoint: tickResult.meta.currentWaypointName,
+            nextWaypoint: tickResult.meta.nextWaypointName,
+            speedKmh: tickResult.telemetry.speedKmh,
+            lat: tickResult.telemetry.lat,
+            lon: tickResult.telemetry.lon,
+            waypointCount: waypoints.length,
+          },
+          waypoints,
+          sampleAvl,
+        });
       }
 
       const { DeviceID, deviceId, state, jitter, energyBaseReading, intervalSeconds } = req.body;
@@ -5941,6 +6399,25 @@ if (ENABLE_SIMULATOR) {
       if (DeviceID) {
         device = await SimulatorDevice.findOne({ deviceId: DeviceID }).lean();
         if (!device) return res.status(404).json({ error: 'Device not found' });
+        if (device.deviceType === 'gpsTracker') {
+          const tickResult = gpsTrackerSim.advanceTick(device, {
+            now: new Date(),
+            intervalSeconds: device.intervalSeconds || 60,
+          });
+          const sampleAvl = gpsTrackerSim.buildAvlFromTick(device, null, tickResult, new Date());
+          return res.json({
+            deviceType: 'gpsTracker',
+            summary: {
+              state: tickResult.meta.state,
+              currentWaypoint: tickResult.meta.currentWaypointName,
+              nextWaypoint: tickResult.meta.nextWaypointName,
+              speedKmh: tickResult.telemetry.speedKmh,
+              lat: tickResult.telemetry.lat,
+              lon: tickResult.telemetry.lon,
+            },
+            sampleAvl,
+          });
+        }
         Object.assign(device, pickEnergySimFields(req.body));
         if (state) device.state = state;
         if (jitter !== undefined) device.jitter = jitter === true;

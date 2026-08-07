@@ -13,11 +13,19 @@ const NAV_ITEMS = [
  * Tracker module header bar — navigation tabs (left) + actions (right).
  * Acts as the page header itself; pages should not render a separate heading.
  *
- * @param {Date|null}  lastUpdated  — optional "Updated hh:mm:ss" hint
+ * @param {Date|string|null}  lastUpdated  — API freshness preferred
  * @param {function}   onRefresh    — optional Refresh action
  * @param {ReactNode}  rightContent — optional extra actions (chips, fab…)
  */
 export default function TrackerTopNav({ lastUpdated, onRefresh, rightContent }) {
+  const updatedDate =
+    lastUpdated instanceof Date
+      ? lastUpdated
+      : lastUpdated
+        ? new Date(lastUpdated)
+        : null;
+  const updatedValid = updatedDate && !Number.isNaN(updatedDate.getTime());
+
   return (
     <header className={styles.bar}>
       <nav className={styles.tabs} aria-label="Tracker sections">
@@ -35,10 +43,10 @@ export default function TrackerTopNav({ lastUpdated, onRefresh, rightContent }) 
       </nav>
 
       <div className={styles.right}>
-        {lastUpdated && (
+        {updatedValid && (
           <span className={styles.updated}>
             Updated{' '}
-            {lastUpdated.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
+            {updatedDate.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
           </span>
         )}
         {onRefresh && (

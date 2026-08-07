@@ -27,10 +27,10 @@ const simulatorDeviceSchema = new mongoose.Schema({
     max: 180,
     default: 0
   },
-  // ✅ 'crane' | 'elevator' | 'energyMeter'
+  // ✅ 'crane' | 'elevator' | 'energyMeter' | 'gpsTracker'
   deviceType: {
     type: String,
-    enum: ['crane', 'elevator', 'energyMeter'],
+    enum: ['crane', 'elevator', 'energyMeter', 'gpsTracker'],
     default: 'crane'
   },
   // ✅ Elevator only: display location string (e.g. "Building A Lobby")
@@ -146,6 +146,79 @@ const simulatorDeviceSchema = new mongoose.Schema({
     sourceRuleIds: [{ type: mongoose.Schema.Types.ObjectId }],
     label: { type: String, default: '' },
   },
+
+  // ---------- Fleet GPS Tracker simulator ----------
+  companyName: { type: String, trim: true, default: '' },
+  imei: { type: String, trim: true, default: '' },
+  displayName: { type: String, trim: true, default: '' },
+  deviceModel: {
+    type: String,
+    enum: ['FMB920', 'FMB125'],
+    default: 'FMB920',
+  },
+  vehicleClass: {
+    type: String,
+    enum: ['car', 'truck', 'van', 'motorcycle', 'serviceVehicle', 'forklift'],
+    default: 'car',
+  },
+  behaviourProfile: {
+    type: String,
+    enum: ['delivery', 'sales', 'taxi', 'serviceEngineer', 'patrol', 'shuttle', 'custom'],
+    default: 'delivery',
+  },
+  routeType: {
+    type: String,
+    enum: ['circular', 'aToBReturn', 'multiStop', 'custom'],
+    default: 'multiStop',
+  },
+  waypoints: [{
+    id: { type: String },
+    name: { type: String, default: '' },
+    lat: { type: Number, required: true },
+    lon: { type: Number, required: true },
+    stopDurationMinutes: { type: Number, default: 10 },
+    placeQuery: { type: String, default: '' },
+  }],
+  routeLibraryId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  speedProfile: {
+    type: String,
+    enum: ['slow', 'city', 'highway', 'random'],
+    default: 'city',
+  },
+  workStart: { type: String, default: '08:30' },
+  workEnd: { type: String, default: '17:30' },
+  lunchStart: { type: String, default: '13:00' },
+  lunchMinutes: { type: Number, default: 45 },
+  defaultStopMinutes: { type: Number, default: 15 },
+  timezone: { type: String, default: 'Asia/Kolkata' },
+  // GPS tick uses intervalSeconds (30/60/120); energy already has this field
+  odometerMeters: { type: Number, default: 0 },
+  seedDays: { type: Number, default: 0 },
+  seedCompleted: { type: Boolean, default: false },
+  // Runtime progress (persisted each tick)
+  fleetState: {
+    type: String,
+    enum: [
+      'OFFLINE',
+      'ENGINE_ON',
+      'MOVING',
+      'ARRIVED',
+      'IDLE',
+      'PARKED',
+      'RETURN_HOME',
+    ],
+    default: 'OFFLINE',
+  },
+  stateEnteredAt: { type: Date, default: null },
+  currentWaypointIndex: { type: Number, default: 0 },
+  segmentProgress: { type: Number, default: 0 },
+  currentLat: { type: Number, default: null },
+  currentLon: { type: Number, default: null },
+  currentSpeedKmh: { type: Number, default: 0 },
+  tripDistanceMeters: { type: Number, default: 0 },
+  tripId: { type: String, default: '' },
+  overrideState: { type: String, default: null },
+  overrideTicksLeft: { type: Number, default: 0 },
 }, {
   timestamps: true // Adds createdAt and updatedAt automatically
 });

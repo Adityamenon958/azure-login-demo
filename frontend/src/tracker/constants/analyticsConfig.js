@@ -2,10 +2,9 @@
 
 export const ANALYTICS_PRESETS = [
   { key: 'today', label: 'Today' },
-  { key: '7d', label: '7 Days' },
-  { key: '30d', label: '30 Days' },
-  { key: '90d', label: '90 Days' },
-  { key: '12mo', label: '12 Months' },
+  { key: '7d', label: 'Week' },
+  { key: '30d', label: 'Month' },
+  { key: 'custom', label: 'Custom' },
 ];
 
 export const HEALTH_BANDS = {

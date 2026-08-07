@@ -12,6 +12,19 @@ import {
   Badge,
   Modal,
 } from 'react-bootstrap';
+import EnergySimForm, {
+  EnergySimPayloadPreview,
+  buildEnergyPreviewBody,
+  buildEnergyAddPayload,
+} from '../components/simulator/EnergySimForm';
+import GpsTrackerSimForm, {
+  DEFAULT_GPS_FORM,
+  buildGpsAddPayload,
+  buildGpsPreviewBody,
+  deviceToGpsForm,
+} from '../components/simulator/GpsTrackerSimForm';
+import EnergyAlarmTestModal from '../components/simulator/EnergyAlarmTestModal';
+import EnergyActiveOverridesPanel from '../components/simulator/EnergyActiveOverridesPanel';
 import {
   Play,
   Square,
@@ -29,16 +42,10 @@ import {
   Zap,
   Send,
   Bell,
+  Truck,
 } from 'lucide-react';
 import axios from 'axios';
 import styles from './Simulator.module.css';
-import EnergySimForm, {
-  EnergySimPayloadPreview,
-  buildEnergyPreviewBody,
-  buildEnergyAddPayload,
-} from '../components/simulator/EnergySimForm';
-import EnergyAlarmTestModal from '../components/simulator/EnergyAlarmTestModal';
-import EnergyActiveOverridesPanel from '../components/simulator/EnergyActiveOverridesPanel';
 
 // ✅ Default form values
 const defaultCraneForm = {
@@ -86,6 +93,7 @@ export default function Simulator() {
   const [showAddCraneModal, setShowAddCraneModal] = useState(false);
   const [showAddElevatorModal, setShowAddElevatorModal] = useState(false);
   const [showAddEnergyModal, setShowAddEnergyModal] = useState(false);
+  const [showAddGpsModal, setShowAddGpsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
@@ -102,8 +110,10 @@ export default function Simulator() {
   const [craneFormData, setCraneFormData] = useState(defaultCraneForm);
   const [elevatorFormData, setElevatorFormData] = useState(defaultElevatorForm);
   const [energyFormData, setEnergyFormData] = useState(defaultEnergyForm);
+  const [gpsFormData, setGpsFormData] = useState({ ...DEFAULT_GPS_FORM });
   const [editFormData, setEditFormData] = useState({ ...defaultCraneForm });
   const [previewPayload, setPreviewPayload] = useState(null);
+  const [gpsPreview, setGpsPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [sendingDevice, setSendingDevice] = useState('');
 
@@ -112,18 +122,23 @@ export default function Simulator() {
   const [stoppingDevice, setStoppingDevice] = useState('');
   const [updatingDevice, setUpdatingDevice] = useState('');
   const [energyCatalog, setEnergyCatalog] = useState(null);
+  const [gpsCatalog, setGpsCatalog] = useState(null);
   const [alarmTestDeviceId, setAlarmTestDeviceId] = useState(null);
   const [overridesRefreshKey, setOverridesRefreshKey] = useState(0);
 
   const craneDevices = useMemo(() => devices.filter((d) => (d.deviceType || 'crane') === 'crane'), [devices]);
   const elevatorDevices = useMemo(() => devices.filter((d) => d.deviceType === 'elevator'), [devices]);
   const energyDevices = useMemo(() => devices.filter((d) => d.deviceType === 'energyMeter'), [devices]);
+  const gpsDevices = useMemo(() => devices.filter((d) => d.deviceType === 'gpsTracker'), [devices]);
 
   useEffect(() => {
     fetchDevices();
     axios.get('/api/sim/energy-catalog', { withCredentials: true })
       .then((res) => setEnergyCatalog(res.data))
       .catch((err) => console.error('Energy catalog fetch failed:', err));
+    axios.get('/api/sim/gps-catalog', { withCredentials: true })
+      .then((res) => setGpsCatalog(res.data))
+      .catch((err) => console.error('GPS catalog fetch failed:', err));
   }, []);
 
   const fetchDevices = async () => {
@@ -157,14 +172,30 @@ export default function Simulator() {
     setEditFormData(nextForm);
   };
 
+  const handleGpsInput = (nextForm) => {
+    setGpsFormData(nextForm);
+  };
+
+  const handleGpsEditInput = (nextForm) => {
+    setEditFormData(nextForm);
+  };
+
   const fetchPayloadPreview = async (source) => {
     try {
       setPreviewLoading(true);
       const res = await axios.post('/api/sim/preview-payload', source, { withCredentials: true });
-      setPreviewPayload(res.data);
+      if (source.deviceType === 'gpsTracker' || source.previewType === 'gpsTracker' || res.data?.deviceType === 'gpsTracker') {
+        setGpsPreview(res.data);
+      } else {
+        setPreviewPayload(res.data);
+      }
     } catch (err) {
       console.error('Preview failed:', err);
-      setPreviewPayload(null);
+      if (source.deviceType === 'gpsTracker' || source.previewType === 'gpsTracker') {
+        setGpsPreview(null);
+      } else {
+        setPreviewPayload(null);
+      }
     } finally {
       setPreviewLoading(false);
     }
@@ -179,12 +210,29 @@ export default function Simulator() {
   }, [showAddEnergyModal, energyFormData]);
 
   useEffect(() => {
+    if (!showAddGpsModal) return undefined;
+    const timer = setTimeout(() => {
+      fetchPayloadPreview(buildGpsPreviewBody(gpsFormData));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [showAddGpsModal, gpsFormData]);
+
+  useEffect(() => {
     if (!showEditModal || editingDevice?.deviceType !== 'energyMeter') return undefined;
     const timer = setTimeout(() => {
       fetchPayloadPreview(buildEnergyPreviewBody(editFormData, editingDevice.DeviceID));
     }, 350);
     return () => clearTimeout(timer);
   }, [showEditModal, editingDevice, editFormData]);
+
+  useEffect(() => {
+    if (!showEditModal || editingDevice?.deviceType !== 'gpsTracker') return undefined;
+    const timer = setTimeout(() => {
+      fetchPayloadPreview(buildGpsPreviewBody(editFormData));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [showEditModal, editingDevice, editFormData]);
+
   const handleEditInput = (e) => {
     const { name, value, type, checked } = e.target;
     setEditFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
@@ -254,6 +302,26 @@ export default function Simulator() {
     }
   };
 
+  const handleAddGps = async () => {
+    try {
+      setAddingDevice(true);
+      setError('');
+      const payload = buildGpsAddPayload(gpsFormData);
+      const response = await axios.post('/api/sim/add', payload, { withCredentials: true });
+      if (response.data.success) {
+        setSuccess(`Fleet vehicle ${gpsFormData.DeviceID} added (Device + simulator). Start it to emit AVL.`);
+        setShowAddGpsModal(false);
+        setGpsFormData({ ...DEFAULT_GPS_FORM });
+        setGpsPreview(null);
+        fetchDevices();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to add fleet vehicle');
+    } finally {
+      setAddingDevice(false);
+    }
+  };
+
   const handleManualSend = async (deviceId) => {
     try {
       setSendingDevice(deviceId);
@@ -304,7 +372,11 @@ export default function Simulator() {
     setEditingDevice(device);
     const isElevator = device.deviceType === 'elevator';
     const isEnergy = device.deviceType === 'energyMeter';
-    if (isEnergy) {
+    const isGps = device.deviceType === 'gpsTracker';
+    if (isGps) {
+      setEditFormData(deviceToGpsForm(device));
+      fetchPayloadPreview(buildGpsPreviewBody(deviceToGpsForm(device)));
+    } else if (isEnergy) {
       setEditFormData({
         DeviceID: device.DeviceID,
         state: device.state,
@@ -359,9 +431,12 @@ export default function Simulator() {
       setError('');
       const isElevator = editingDevice.deviceType === 'elevator';
       const isEnergy = editingDevice.deviceType === 'energyMeter';
+      const isGps = editingDevice.deviceType === 'gpsTracker';
       const payload = {
         DeviceID: editingDevice.DeviceID,
-        ...(isEnergy
+        ...(isGps
+          ? buildGpsAddPayload({ ...editFormData, DeviceID: editingDevice.DeviceID })
+          : isEnergy
           ? buildEnergyAddPayload({ ...editFormData, DeviceID: editingDevice.DeviceID })
           : isElevator
           ? {
@@ -385,6 +460,7 @@ export default function Simulator() {
       setSuccess(`Device ${editingDevice.DeviceID} updated`);
       setShowEditModal(false);
       setEditingDevice(null);
+      setGpsPreview(null);
       fetchDevices();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update');
@@ -638,7 +714,7 @@ export default function Simulator() {
             Data Simulator
           </h2>
           <p className="text-muted mb-0">
-            Generate simulated crane, elevator, or energy meter data for testing.
+            Generate simulated crane, elevator, energy meter, or fleet GPS data for testing.
           </p>
         </Col>
         <Col xs="auto">
@@ -666,6 +742,14 @@ export default function Simulator() {
             >
               <Zap size={18} className="me-1" />
               Add Energy Meter
+            </Button>
+            <Button
+              variant="dark"
+              className={styles.headerActionBtn}
+              onClick={() => setShowAddGpsModal(true)}
+            >
+              <Truck size={18} className="me-1" />
+              Add Fleet Vehicle
             </Button>
           </div>
         </Col>
@@ -849,6 +933,75 @@ export default function Simulator() {
         </Card.Body>
       </Card>
 
+      {/* ---------- Section 4: Fleet Behaviour Simulator ---------- */}
+      <Card className="mb-4">
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <h5 className="mb-0 d-flex align-items-center">
+            <Truck size={20} className="me-2" />
+            Fleet Vehicle Simulator
+          </h5>
+          <Button variant="outline-secondary" size="sm" onClick={fetchDevices}>
+            <RefreshCw size={16} className="me-1" />
+            Refresh
+          </Button>
+        </Card.Header>
+        <Card.Body>
+          <p className="text-muted small">
+            Upserts a real <code>gpsTracker</code> Device and inserts <code>AvlRecord</code>s each tick
+            (same path as Teltonika). Use different Fleet Behaviour Profiles for multi-vehicle demos.
+            Optional 7-day seed on first Start fills Analytics Week.
+          </p>
+          {gpsDevices.length === 0 ? (
+            <p className="text-muted mb-0">No fleet vehicles. Click &quot;Add Fleet Vehicle&quot; to add one.</p>
+          ) : (
+            <Table responsive striped hover size="sm">
+              <thead>
+                <tr>
+                  <th>Device ID</th>
+                  <th>Name</th>
+                  <th>Profile</th>
+                  <th>Fleet state</th>
+                  <th>Next stop</th>
+                  <th>Interval</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gpsDevices.map((device) => (
+                  <tr key={device.DeviceID}>
+                    <td><strong>{device.DeviceID}</strong></td>
+                    <td>{device.displayName || '—'}</td>
+                    <td><Badge bg="dark">{device.behaviourProfile || 'delivery'}</Badge></td>
+                    <td>
+                      <Badge bg={
+                        device.fleetState === 'MOVING' || device.fleetState === 'RETURN_HOME' ? 'success'
+                          : device.fleetState === 'PARKED' || device.fleetState === 'OFFLINE' ? 'secondary'
+                            : 'info'
+                      }>
+                        {device.fleetState || 'OFFLINE'}
+                      </Badge>
+                    </td>
+                    <td><small>{device.nextWaypointName || '—'}</small></td>
+                    <td><Clock size={14} className="me-1" />{device.intervalSeconds || 60}s</td>
+                    <td>{getStatusBadge(device)}</td>
+                    <td><ActionButtons device={device} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          {gpsPreview?.summary && (
+            <div className="mt-2 small text-muted">
+              Preview: {gpsPreview.summary.state} → {gpsPreview.summary.nextWaypoint}
+              {' '}@ [{Number(gpsPreview.summary.lat).toFixed(5)}, {Number(gpsPreview.summary.lon).toFixed(5)}]
+              {' '}{gpsPreview.summary.speedKmh} km/h
+              {previewLoading ? ' …' : ''}
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+
       {/* ---------- Add Crane Modal ---------- */}
       <Modal show={showAddCraneModal} onHide={() => setShowAddCraneModal(false)} size="lg">
         <Modal.Header closeButton><Modal.Title>Add Simulated Crane</Modal.Title></Modal.Header>
@@ -1012,13 +1165,57 @@ export default function Simulator() {
         </Modal.Footer>
       </Modal>
 
-      {/* ---------- Edit Modal (crane, elevator, or energy meter) ---------- */}
-      <Modal show={showEditModal} onHide={() => { setShowEditModal(false); setEditingDevice(null); setPreviewPayload(null); }} size="lg">
+      {/* ---------- Add Fleet Vehicle Modal ---------- */}
+      <Modal show={showAddGpsModal} onHide={() => { setShowAddGpsModal(false); setGpsPreview(null); }} size="lg">
+        <Modal.Header closeButton><Modal.Title>Add Fleet Vehicle</Modal.Title></Modal.Header>
+        <Modal.Body>
+          <GpsTrackerSimForm
+            formData={gpsFormData}
+            onChange={handleGpsInput}
+            catalog={gpsCatalog}
+          />
+          {gpsPreview?.summary && (
+            <Alert variant="light" className="small mb-0 border">
+              Next tick preview: <strong>{gpsPreview.summary.state}</strong>
+              {' '}toward <strong>{gpsPreview.summary.nextWaypoint}</strong>
+              {' '}({gpsPreview.summary.waypointCount} stops)
+            </Alert>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => { setShowAddGpsModal(false); setGpsPreview(null); }}>Cancel</Button>
+          <Button
+            variant="dark"
+            onClick={handleAddGps}
+            disabled={addingDevice || !gpsFormData.DeviceID || !gpsFormData.companyName}
+          >
+            {addingDevice ? <><Spinner animation="border" size="sm" className="me-2" />Adding...</> : 'Add Fleet Vehicle'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ---------- Edit Modal (crane, elevator, energy, or fleet GPS) ---------- */}
+      <Modal show={showEditModal} onHide={() => { setShowEditModal(false); setEditingDevice(null); setPreviewPayload(null); setGpsPreview(null); }} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Edit: {editingDevice?.DeviceID}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {editingDevice?.deviceType === 'energyMeter' ? (
+          {editingDevice?.deviceType === 'gpsTracker' ? (
+            <>
+              <GpsTrackerSimForm
+                formData={editFormData}
+                onChange={handleGpsEditInput}
+                catalog={gpsCatalog}
+                deviceIdDisabled
+                showDeviceId
+              />
+              {gpsPreview?.summary && (
+                <Alert variant="light" className="small mb-0 border">
+                  Preview: {gpsPreview.summary.state} → {gpsPreview.summary.nextWaypoint}
+                </Alert>
+              )}
+            </>
+          ) : editingDevice?.deviceType === 'energyMeter' ? (
             <>
               <EnergySimForm
                 formData={editFormData}

@@ -1,19 +1,68 @@
-import React, { useState } from 'react';
-import { Download } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { ANALYTICS_PRESETS } from '../../constants/analyticsConfig';
 import { analyticsExportUrl } from '../../services/trackerApi';
+import {
+  formatAnalyticsDayLabel,
+  isoToDateInputValue,
+} from '../../utils/analyticsFormatters';
 import styles from './AnalyticsFilterBar.module.css';
 
+/** Presets + day stepper + custom range picker + search + export. */
 export default function AnalyticsFilterBar({
   preset,
   onPreset,
+  onCustomRange,
   search,
   onSearch,
   from,
   to,
-  onRefresh,
+  onPrevDay,
+  onNextDay,
+  canGoNext = true,
 }) {
   const [exportOpen, setExportOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState('');
+  const [draftTo, setDraftTo] = useState('');
+  const customWrapRef = useRef(null);
+
+  const dayLabel = formatAnalyticsDayLabel(to);
+  const todayYmd = isoToDateInputValue(new Date().toISOString());
+
+  // Sync draft inputs when opening / when range changes while open
+  useEffect(() => {
+    if (!customOpen) return;
+    setDraftFrom(isoToDateInputValue(from));
+    setDraftTo(isoToDateInputValue(to));
+  }, [customOpen, from, to]);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!customOpen) return undefined;
+    const onDoc = (e) => {
+      if (customWrapRef.current && !customWrapRef.current.contains(e.target)) {
+        setCustomOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [customOpen]);
+
+  const handlePresetClick = (key) => {
+    if (key === 'custom') {
+      setCustomOpen(true);
+      return;
+    }
+    setCustomOpen(false);
+    onPreset?.(key);
+  };
+
+  const applyCustom = () => {
+    if (!draftFrom || !draftTo) return;
+    onCustomRange?.(draftFrom, draftTo);
+    setCustomOpen(false);
+  };
 
   const download = async (format) => {
     try {
@@ -39,18 +88,88 @@ export default function AnalyticsFilterBar({
 
   return (
     <div className={styles.bar}>
-      <div className={styles.presets}>
-        {ANALYTICS_PRESETS.map((p) => (
+      <div className={styles.left}>
+        <div className={styles.presetsWrap} ref={customWrapRef}>
+          <div className={styles.presets}>
+            {ANALYTICS_PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                className={`${styles.chip} ${preset === p.key ? styles.active : ''}`}
+                onClick={() => handlePresetClick(p.key)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {customOpen && (
+            <div className={styles.customPopover} role="dialog" aria-label="Custom date range">
+              <div className={styles.customTitle}>Custom range</div>
+              <label className={styles.customField}>
+                <span>From</span>
+                <input
+                  type="date"
+                  className={styles.dateInput}
+                  value={draftFrom}
+                  max={draftTo || todayYmd}
+                  onChange={(e) => setDraftFrom(e.target.value)}
+                />
+              </label>
+              <label className={styles.customField}>
+                <span>To</span>
+                <input
+                  type="date"
+                  className={styles.dateInput}
+                  value={draftTo}
+                  min={draftFrom || undefined}
+                  max={todayYmd}
+                  onChange={(e) => setDraftTo(e.target.value)}
+                />
+              </label>
+              <div className={styles.customActions}>
+                <button
+                  type="button"
+                  className={styles.customCancel}
+                  onClick={() => setCustomOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.customApply}
+                  onClick={applyCustom}
+                  disabled={!draftFrom || !draftTo}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.dayNav} aria-label="Day selector">
           <button
-            key={p.key}
             type="button"
-            className={`${styles.chip} ${preset === p.key ? styles.active : ''}`}
-            onClick={() => onPreset?.(p.key)}
+            className={styles.dayBtn}
+            onClick={() => onPrevDay?.()}
+            aria-label="Previous day"
           >
-            {p.label}
+            <ChevronLeft size={16} strokeWidth={2.25} />
           </button>
-        ))}
+          <span className={styles.dayLabel}>{dayLabel}</span>
+          <button
+            type="button"
+            className={styles.dayBtn}
+            onClick={() => onNextDay?.()}
+            disabled={!canGoNext}
+            aria-label="Next day"
+          >
+            <ChevronRight size={16} strokeWidth={2.25} />
+          </button>
+        </div>
       </div>
+
       <div className={styles.right}>
         <input
           className={styles.search}
@@ -59,9 +178,6 @@ export default function AnalyticsFilterBar({
           value={search || ''}
           onChange={(e) => onSearch?.(e.target.value)}
         />
-        <button type="button" className={styles.exportBtn} onClick={onRefresh}>
-          Refresh
-        </button>
         <div style={{ position: 'relative' }}>
           <button
             type="button"

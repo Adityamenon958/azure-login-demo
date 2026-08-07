@@ -1,17 +1,18 @@
 .topbar {
     background-color: #ffffff;
-    height: 3.75rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
     align-items: center;
     margin-bottom: 0 !important;
     flex-wrap: nowrap;
   }
 
   .Dlogo{
-    width: 5.5rem;
-    height: 5.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
     padding: 0;
     object-fit: contain;
-    max-height: 5.5rem;
+    max-height: 2.75rem;
     flex-shrink: 0;
   }
 
@@ -28,7 +29,7 @@
   font-size: 0.9rem;
   font-weight: 700;
   margin: 0;
-  height: 42px;
+  height: 32px;
   padding-left: 2.35rem;
   padding-right: 2rem;
   text-align: left;
@@ -225,8 +226,8 @@
     transition: transform 0.2s ease;
     border-radius: 50%;
     overflow: hidden;
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border: 2px solid #e9ecef;
   }
 
@@ -263,7 +264,7 @@
     color: white;
     border-radius: 50%;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 12px;
     letter-spacing: 0.5px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
@@ -286,7 +287,7 @@
   /* ✅ Profile Modal Styles */
   .profileModal {
     position: absolute !important;
-    top: 60px !important;
+    top: 44px !important;
     right: 20px !important;
     left: auto !important;
     transform: none !important;
@@ -386,7 +387,7 @@
   .userEmail {
     margin: 5px 0 0 0;
     color: #6c757d;
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .profileActions {

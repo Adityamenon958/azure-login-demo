@@ -1,16 +1,10 @@
 import React from 'react';
 import { Col, Row, Spinner } from 'react-bootstrap';
-import {
-  Award,
-  Gauge,
-  WifiOff,
-  Wrench,
-  Route,
-  Clock3,
-} from 'lucide-react';
+import { Award, Gauge, WifiOff, Wrench } from 'lucide-react';
 import { formatPct } from '../../utils/analyticsFormatters';
 import styles from './FleetKpiCards.module.css';
 
+// Summary strip: health + attention only
 const CARDS = [
   {
     key: 'fleetScore',
@@ -44,22 +38,6 @@ const CARDS = [
     accent: '#ca8a04',
     format: (k) => k.maintenanceDue ?? 0,
   },
-  {
-    key: 'totalDistanceKm',
-    label: 'Distance',
-    subtitle: 'Fleet total',
-    icon: Route,
-    accent: '#0369a1',
-    format: (k) => `${Number(k.totalDistanceKm || 0).toFixed(1)} km`,
-  },
-  {
-    key: 'totalEngineOnHours',
-    label: 'Engine ON',
-    subtitle: 'Hours in range',
-    icon: Clock3,
-    accent: '#7c3aed',
-    format: (k) => `${k.totalEngineOnHours ?? 0} h`,
-  },
 ];
 
 export default function FleetKpiCards({ kpis, loading }) {
@@ -72,7 +50,7 @@ export default function FleetKpiCards({ kpis, loading }) {
         const subtitle =
           typeof card.subtitle === 'function' ? card.subtitle(data) : card.subtitle;
         return (
-          <Col xs={6} md={4} xl={2} key={card.key}>
+          <Col xs={6} md={3} key={card.key}>
             <div className={styles.card} style={{ borderLeftColor: card.accent }}>
               <div>
                 <h3 className={styles.value}>

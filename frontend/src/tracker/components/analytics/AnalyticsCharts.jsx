@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Col, Row, Spinner } from 'react-bootstrap';
+import React, { useMemo, useState } from 'react';
+import { Spinner } from 'react-bootstrap';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -11,13 +11,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts';
 import styles from './AnalyticsCharts.module.css';
-
-const PIE_COLORS = ['#15803d', '#ca8a04', '#dc2626', '#64748b'];
 
 function periodLabel(key) {
   if (!key) return '';
@@ -34,7 +29,10 @@ function periodLabel(key) {
   return key;
 }
 
-export default function AnalyticsCharts({ series = [], kpis, loading }) {
+/** Secondary analysis band — Hours primary, Distance via tab. */
+export default function AnalyticsCharts({ series = [], loading }) {
+  const [tab, setTab] = useState('hours');
+
   const hoursData = useMemo(
     () =>
       (series || []).map((s) => ({
@@ -48,25 +46,6 @@ export default function AnalyticsCharts({ series = [], kpis, loading }) {
     [series]
   );
 
-  const utilPie = useMemo(() => {
-    const k = kpis || {};
-    return [
-      { name: 'Active', value: k.activeVehicles || 0 },
-      { name: 'Underutilized', value: k.underutilized || 0 },
-      { name: 'Overworked', value: k.overworked || 0 },
-      {
-        name: 'Other',
-        value: Math.max(
-          0,
-          (k.totalVehicles || 0) -
-            (k.activeVehicles || 0) -
-            (k.underutilized || 0) -
-            (k.overworked || 0)
-        ),
-      },
-    ].filter((d) => d.value > 0);
-  }, [kpis]);
-
   if (loading) {
     return (
       <div className={styles.empty}>
@@ -76,94 +55,76 @@ export default function AnalyticsCharts({ series = [], kpis, loading }) {
   }
 
   return (
-    <Row className="g-2 mb-3">
-      <Col xs={12} lg={5}>
-        <div className={styles.wrap}>
-          <h6 className={styles.title}>Fleet hours by period</h6>
-          {hoursData.length === 0 ? (
-            <div className={styles.empty}>No series data</div>
-          ) : (
-            <div className={styles.chartBox}>
-              <ResponsiveContainer>
-                <ComposedChart data={hoursData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="moving" stackId="a" fill="#15803d" name="Moving" />
-                  <Bar dataKey="idle" stackId="a" fill="#ca8a04" name="Idle" />
-                  <Bar dataKey="parked" stackId="a" fill="#334155" name="Parked" />
-                  <Line
-                    type="monotone"
-                    dataKey="engineOn"
-                    stroke="#0d6efd"
-                    strokeWidth={2}
-                    name="Engine ON"
-                    dot={false}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+    <div className={`${styles.wrap} mb-3`}>
+      <div className={styles.headerRow}>
+        <h6 className={styles.title}>Fleet trends</h6>
+        <div className={styles.tabs} role="tablist" aria-label="Trend chart">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'hours'}
+            className={`${styles.tab} ${tab === 'hours' ? styles.tabActive : ''}`}
+            onClick={() => setTab('hours')}
+          >
+            Hours
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'distance'}
+            className={`${styles.tab} ${tab === 'distance' ? styles.tabActive : ''}`}
+            onClick={() => setTab('distance')}
+          >
+            Distance
+          </button>
         </div>
-      </Col>
-      <Col xs={12} lg={4}>
-        <div className={styles.wrap}>
-          <h6 className={styles.title}>Distance trend</h6>
-          {hoursData.length === 0 ? (
-            <div className={styles.empty}>No series data</div>
-          ) : (
-            <div className={styles.chartBox}>
-              <ResponsiveContainer>
-                <LineChart data={hoursData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="distance"
-                    stroke="#0369a1"
-                    strokeWidth={2}
-                    name="km"
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      </div>
+
+      {hoursData.length === 0 ? (
+        <div className={styles.empty}>No series data</div>
+      ) : tab === 'hours' ? (
+        <div className={styles.chartBoxPrimary}>
+          <ResponsiveContainer>
+            <ComposedChart data={hoursData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="moving" stackId="a" fill="#15803d" name="Moving" />
+              <Bar dataKey="idle" stackId="a" fill="#ca8a04" name="Idle" />
+              <Bar dataKey="parked" stackId="a" fill="#334155" name="Parked" />
+              <Line
+                type="monotone"
+                dataKey="engineOn"
+                stroke="#0d6efd"
+                strokeWidth={2}
+                name="Engine ON"
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
-      </Col>
-      <Col xs={12} lg={3}>
-        <div className={styles.wrap}>
-          <h6 className={styles.title}>Utilization mix</h6>
-          {utilPie.length === 0 ? (
-            <div className={styles.empty}>No KPI data</div>
-          ) : (
-            <div className={styles.chartBox}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={utilPie}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={45}
-                    outerRadius={70}
-                    paddingAngle={2}
-                  >
-                    {utilPie.map((entry, i) => (
-                      <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      ) : (
+        <div className={styles.chartBoxPrimary}>
+          <ResponsiveContainer>
+            <LineChart data={hoursData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="distance"
+                stroke="#0369a1"
+                strokeWidth={2}
+                name="km"
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-      </Col>
-    </Row>
+      )}
+    </div>
   );
 }

@@ -1,0 +1,125 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 118px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--gsn-surface-card, #fff);
+  border: 1px solid var(--gsn-border-primary, #e5e7eb);
+  border-left: 4px solid #94a3b8;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+  width: 100%;
+}
+
+.card:hover {
+  background: #f8fafc;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.08);
+}
+
+.selected {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.band1 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--gsn-text-primary, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.deviceId {
+  font-size: 0.65rem;
+  color: var(--gsn-text-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.healthChip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.mutedBadge {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.band2,
+.band3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px 8px;
+}
+
+.metric {
+  min-width: 0;
+}
+
+.metricLabel {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.metricValue {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.band3 {
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
