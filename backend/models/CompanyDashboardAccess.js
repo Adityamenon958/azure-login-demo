@@ -9,10 +9,11 @@ const companyDashboardAccessSchema = new mongoose.Schema({
   dashboardAccess: {
     home: { type: Boolean, default: true },
     dashboard: { type: Boolean, default: true },
+    trackerOverview: { type: Boolean, default: false },
     craneOverview: { type: Boolean, default: false },
     elevatorOverview: { type: Boolean, default: false },
     energyOverview: { type: Boolean, default: false },
-    trackerOverview: { type: Boolean, default: false },
+    fleetAlarms: { type: Boolean, default: false },
     craneDashboard: { type: Boolean, default: false },
     reports: { type: Boolean, default: true },
     addUsers: { type: Boolean, default: true },

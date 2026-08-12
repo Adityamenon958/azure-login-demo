@@ -22,7 +22,6 @@ import EnergyOverview from './pages/EnergyOverview';
 import EnergyFleetAlarmSettings from './pages/EnergyFleetAlarmSettings';
 import Simulator from './pages/Simulator';
 import SimulatorRouteGuard from './components/SimulatorRouteGuard';
-import LiveDataDemo from './pages/demo/LiveDataDemo';
 import TrackerOverview from './tracker/pages/TrackerOverview';
 import TrackerDeviceDetail from './tracker/pages/TrackerDeviceDetail';
 import FleetAnalytics from './tracker/pages/FleetAnalytics';
@@ -44,9 +43,6 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<LoginCarousel />} />
-      {/* ✅ Temporary demo page — remove after client demo */}
-      <Route path="/demo/live-data" element={<LiveDataDemo />} />
-
 
       <Route path="/dashboard" element={<Dashboard />}>
         <Route index element={
@@ -97,7 +93,7 @@ function App() {
         } />
 
         <Route path="energy-alarms" element={
-          <RouteGuard requiredAccess="energyOverview">
+          <RouteGuard requiredAccess="fleetAlarms">
             <EnergyFleetAlarmSettings />
           </RouteGuard>
         } />

@@ -51,8 +51,7 @@ const {
   validateDeviceModelForType,
   validateDisplayNameForType,
 } = require("./backend/utils/deviceCatalog");
-// ✅ Temporary Live Device Data Monitor — remove after demo
-const demoLiveDataRouter = require('./backend/routes/demoLiveData');
+
 const trackerRoutes = require('./backend/tracker/routes/trackerRoutes');
 const {
   runNightlyRollup,
@@ -8309,6 +8308,30 @@ app.get("/api/levelsensor/uids", authenticateToken, async (req, res) => {
 
 // ✅ Company Dashboard Access Control APIs
 
+const DEFAULT_DASHBOARD_ACCESS = {
+  home: true,
+  dashboard: true,
+  trackerOverview: false,
+  craneOverview: false,
+  elevatorOverview: false,
+  energyOverview: false,
+  fleetAlarms: false,
+  craneDashboard: false,
+  reports: true,
+  addUsers: true,
+  addDevices: true,
+  subscription: true,
+  settings: true,
+};
+
+function mergeDashboardAccess(stored) {
+  const merged = { ...DEFAULT_DASHBOARD_ACCESS, ...(stored || {}) };
+  if (stored && stored.fleetAlarms === undefined && stored.energyOverview === true) {
+    merged.fleetAlarms = true;
+  }
+  return merged;
+}
+
 // Get all companies with dashboard access
 app.get("/api/company-dashboard-access", authenticateToken, async (req, res) => {
   try {
@@ -8336,26 +8359,17 @@ app.get("/api/company-dashboard-access", authenticateToken, async (req, res) => 
             // Create default access
             access = new CompanyDashboardAccess({
               companyName: companyName.trim(),
-              dashboardAccess: {
-                home: true,
-                dashboard: true,
-                craneOverview: false,
-                elevatorOverview: false,
-                energyOverview: false,
-                trackerOverview: false,
-                craneDashboard: false,
-                reports: true,
-                addUsers: true,
-                addDevices: true,
-                subscription: true,
-                settings: true
-              }
+              dashboardAccess: { ...DEFAULT_DASHBOARD_ACCESS },
             });
             await access.save();
             console.log('✅ Created access record for:', companyName);
           }
-          
-          return access;
+
+          const plain = access.toObject ? access.toObject() : access;
+          return {
+            ...plain,
+            dashboardAccess: mergeDashboardAccess(plain.dashboardAccess),
+          };
         } catch (err) {
           console.error('❌ Error processing company:', companyName, err);
           return null;
@@ -8417,7 +8431,7 @@ app.get("/api/check-dashboard-access/:dashboardName", authenticateToken, async (
       return res.json({ hasAccess: false });
     }
 
-    const hasAccess = access.dashboardAccess[dashboardName] || false;
+    const hasAccess = mergeDashboardAccess(access.dashboardAccess)[dashboardName] || false;
     res.json({ hasAccess });
   } catch (err) {
     console.error('Error checking dashboard access:', err);
@@ -9341,8 +9355,6 @@ app.get("/api/elevator/timeseries-stats", authenticateToken, async (req, res) =>
   }
 });
 
-// ✅ Temporary demo API — delete mount + backend/routes/demoLiveData.js + backend/services/demoLiveDataStore.js after demo
-app.use('/api/demo', demoLiveDataRouter);
 
 // ✅ Tracker Dashboard APIs (independent of Crane) — reads avlrecords via repository/mapper layer
 app.use('/api/tracker', authenticateToken, trackerRoutes);

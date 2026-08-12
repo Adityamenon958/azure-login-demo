@@ -87,6 +87,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           axios.get('/api/check-dashboard-access/craneOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/elevatorOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/energyOverview', { withCredentials: true }),
+          axios.get('/api/check-dashboard-access/fleetAlarms', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/reports', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addUsers', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addDevices', { withCredentials: true }),
@@ -101,11 +102,12 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           craneOverview: accessChecks[3].data.hasAccess,
           elevatorOverview: accessChecks[4].data.hasAccess,
           energyOverview: accessChecks[5].data.hasAccess,
-          reports: accessChecks[6].data.hasAccess,
-          addUsers: accessChecks[7].data.hasAccess,
-          addDevices: accessChecks[8].data.hasAccess,
-          subscription: accessChecks[9].data.hasAccess,
-          settings: accessChecks[10].data.hasAccess,
+          fleetAlarms: accessChecks[6].data.hasAccess,
+          reports: accessChecks[7].data.hasAccess,
+          addUsers: accessChecks[8].data.hasAccess,
+          addDevices: accessChecks[9].data.hasAccess,
+          subscription: accessChecks[10].data.hasAccess,
+          settings: accessChecks[11].data.hasAccess,
         };
 
         setCompanyAccess(access);
@@ -120,6 +122,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           craneOverview: false,
           elevatorOverview: false,
           energyOverview: false,
+          fleetAlarms: false,
           craneDashboard: false,
           reports: true,
           addUsers: true,
@@ -284,7 +287,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 </>
               ))}
 
-            {(role === 'superadmin' || companyAccess.energyOverview) &&
+            {(role === 'superadmin' || companyAccess.fleetAlarms) &&
               navBtn('/dashboard/energy-alarms', null, (
                 <>
                   <Bell size={ICON} />
@@ -324,21 +327,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                   <Activity size={ICON} />
                   <span className={styles.navText}>Simulator</span>
                 </>
-              ))}
-
-            {/* ❗ TEMPORARY demo — remove after client demo */}
-            <button
-              type="button"
-              className={`${styles.iconButton} ${
-                location.pathname === '/demo/live-data' ? styles.active : ''
-              }`}
-              onClick={() => go('/demo/live-data')}
-            >
-              <span className={styles.iconButtonInner}>
-                <Radio size={ICON} />
-                <span className={styles.navText}>Live Data Demo</span>
-              </span>
-            </button>
+              )            )}
 
             {/* ✅ Manage Users */}
             {((role === 'admin' && companyAccess.addUsers) || role === 'superadmin') && (

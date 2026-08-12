@@ -14,6 +14,7 @@ import {
   FileText,
   Zap,
   Radio,
+  Bell,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -30,21 +31,37 @@ export default function CompanyDashboardAccessManager() {
   const [success, setSuccess] = useState('');
   const [userRole, setUserRole] = useState('');
 
-  // Dashboard list with icons
+  // ✅ Keep in sync with Sidebar + RouteGuard + CompanyDashboardAccess model
   const dashboards = [
     { key: 'home', name: 'Home', icon: Home, default: true },
     { key: 'dashboard', name: 'Dashboard', icon: BarChart3, default: true },
-    { key: 'trackerOverview', name: 'Tracker Overview', icon: Radio, default: false },
+    { key: 'trackerOverview', name: 'Tracker / Fleet Analytics', icon: Radio, default: false },
     { key: 'craneOverview', name: 'Crane Overview', icon: Truck, default: false },
     { key: 'elevatorOverview', name: 'Elevator Overview', icon: ArrowUpDown, default: false },
     { key: 'energyOverview', name: 'Energy Overview', icon: Zap, default: false },
+    { key: 'fleetAlarms', name: 'Fleet Alarms', icon: Bell, default: false },
+    { key: 'reports', name: 'Report', icon: FileText, default: true },
     { key: 'craneDashboard', name: 'Crane Dashboard', icon: Truck, default: false },
-    { key: 'reports', name: 'Reports', icon: FileText, default: true },
     { key: 'addUsers', name: 'Manage Users', icon: Users, default: true },
-    { key: 'addDevices', name: 'Manage Devices', icon: Shield, default: true },
+    { key: 'addDevices', name: 'Manage Device', icon: Shield, default: true },
     { key: 'subscription', name: 'Subscription', icon: CreditCard, default: true },
-    { key: 'settings', name: 'Settings', icon: Settings, default: true }
+    { key: 'settings', name: 'Settings', icon: Settings, default: true },
   ];
+
+  const defaultDashboardAccess = Object.fromEntries(
+    dashboards.map((d) => [d.key, d.default === true])
+  );
+
+  /** Merge stored access with defaults so new dashboards appear for old companies */
+  const normalizeCompanyAccess = (company) => {
+    const stored = company?.dashboardAccess || {};
+    const merged = { ...defaultDashboardAccess, ...stored };
+    // ✅ Older records had Fleet Alarms tied to Energy — preserve that until superadmin changes it
+    if (stored.fleetAlarms === undefined && stored.energyOverview === true) {
+      merged.fleetAlarms = true;
+    }
+    return merged;
+  };
 
   // Fetch companies and their access
   useEffect(() => {
@@ -87,8 +104,12 @@ export default function CompanyDashboardAccessManager() {
       });
       
       console.log('✅ API Response:', response.data);
-      setCompanies(response.data.companies || []);
-      console.log('✅ Companies loaded:', response.data.companies);
+      const normalized = (response.data.companies || []).map((company) => ({
+        ...company,
+        dashboardAccess: normalizeCompanyAccess(company),
+      }));
+      setCompanies(normalized);
+      console.log('✅ Companies loaded:', normalized);
     } catch (err) {
       console.error('❌ Failed to load companies:', err);
       
