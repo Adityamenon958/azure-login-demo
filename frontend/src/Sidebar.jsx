@@ -8,6 +8,7 @@ import {
   Activity,
   Radio,
   Map,
+  ClipboardList,
   ChevronDown,
   ChevronUp,
   UserPlus,
@@ -244,16 +245,18 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 </>
               ))}
 
-            {/* ✅ Fleet Monitor — Fleet Map only shows while inside this section */}
+            {/* ✅ Fleet Monitor — Fleet Map + Attendance only while inside this section */}
             {(role === 'superadmin' || companyAccess.trackerOverview) && (() => {
               const onFleetSection =
                 location.pathname === '/dashboard/fleet-analytics' ||
                 location.pathname === '/dashboard/tracker-overview' ||
+                location.pathname === '/dashboard/attendance' ||
                 /^\/dashboard\/tracker\/.+/.test(location.pathname);
               const onFleetMonitor =
                 location.pathname === '/dashboard/fleet-analytics' ||
                 /^\/dashboard\/tracker\/.+/.test(location.pathname);
               const onFleetMap = location.pathname === '/dashboard/tracker-overview';
+              const onAttendance = location.pathname === '/dashboard/attendance';
 
               return (
                 <div className={styles.navGroup}>
@@ -273,18 +276,32 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                     </span>
                   </button>
                   {onFleetSection && (
-                    <button
-                      type="button"
-                      className={`${styles.iconButton} ${styles.navSubItem} ${
-                        onFleetMap ? styles.active : ''
-                      }`}
-                      onClick={() => go('/dashboard/tracker-overview')}
-                    >
-                      <span className={`${styles.iconButtonInner} ${styles.navSubInner}`}>
-                        <Map size={ICON} />
-                        <span className={styles.navText}>Fleet Map</span>
-                      </span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.navSubItem} ${
+                          onFleetMap ? styles.active : ''
+                        }`}
+                        onClick={() => go('/dashboard/tracker-overview')}
+                      >
+                        <span className={`${styles.iconButtonInner} ${styles.navSubInner}`}>
+                          <Map size={ICON} />
+                          <span className={styles.navText}>Fleet Map</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.navSubItem} ${
+                          onAttendance ? styles.active : ''
+                        }`}
+                        onClick={() => go('/dashboard/attendance')}
+                      >
+                        <span className={`${styles.iconButtonInner} ${styles.navSubInner}`}>
+                          <ClipboardList size={ICON} />
+                          <span className={styles.navText}>Attendance</span>
+                        </span>
+                      </button>
+                    </>
                   )}
                 </div>
               );

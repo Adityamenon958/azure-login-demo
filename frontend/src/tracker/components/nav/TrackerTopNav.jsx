@@ -7,6 +7,7 @@ import styles from './TrackerTopNav.module.css';
 const NAV_ITEMS = [
   { to: '/dashboard/fleet-analytics', label: 'Fleet Monitor' },
   { to: '/dashboard/tracker-overview', label: 'Fleet Map' },
+  { to: '/dashboard/attendance', label: 'Attendance' },
 ];
 
 /**
