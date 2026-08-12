@@ -35,7 +35,7 @@ export default function CompanyDashboardAccessManager() {
   const dashboards = [
     { key: 'home', name: 'Home', icon: Home, default: true },
     { key: 'dashboard', name: 'Dashboard', icon: BarChart3, default: true },
-    { key: 'trackerOverview', name: 'Tracker / Fleet Analytics', icon: Radio, default: false },
+    { key: 'trackerOverview', name: 'Fleet Monitor / Fleet Map', icon: Radio, default: false },
     { key: 'craneOverview', name: 'Crane Overview', icon: Truck, default: false },
     { key: 'elevatorOverview', name: 'Elevator Overview', icon: ArrowUpDown, default: false },
     { key: 'energyOverview', name: 'Energy Overview', icon: Zap, default: false },

@@ -13,7 +13,7 @@ export default function VehicleDetailHeader({
   lastRefreshed,
   onBack,
   onRefresh,
-  backLabel = 'Fleet Analytics',
+  backLabel = 'Fleet Monitor',
 }) {
   const title = device?.displayName || device?.deviceId || 'Vehicle';
   const mapsUrl = state ? getGoogleMapsUrl(state.latitude, state.longitude) : null;

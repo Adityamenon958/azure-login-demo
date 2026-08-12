@@ -7,6 +7,9 @@ import {
   LogOut,
   Activity,
   Radio,
+  Map,
+  ChevronDown,
+  ChevronUp,
   UserPlus,
   PlusSquare,
   Truck,
@@ -241,24 +244,51 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 </>
               ))}
 
-            {/* ✅ Fleet Tracker — default landing is Fleet Analytics */}
-            {(role === 'superadmin' || companyAccess.trackerOverview) && (
-              <button
-                type="button"
-                className={`${styles.iconButton} ${
-                  location.pathname.startsWith('/dashboard/tracker') ||
-                  location.pathname === '/dashboard/fleet-analytics'
-                    ? styles.active
-                    : ''
-                }`}
-                onClick={() => go('/dashboard/fleet-analytics')}
-              >
-                <span className={styles.iconButtonInner}>
-                  <Radio size={ICON} />
-                  <span className={styles.navText}>Tracker Overview</span>
-                </span>
-              </button>
-            )}
+            {/* ✅ Fleet Monitor — Fleet Map only shows while inside this section */}
+            {(role === 'superadmin' || companyAccess.trackerOverview) && (() => {
+              const onFleetSection =
+                location.pathname === '/dashboard/fleet-analytics' ||
+                location.pathname === '/dashboard/tracker-overview' ||
+                /^\/dashboard\/tracker\/.+/.test(location.pathname);
+              const onFleetMonitor =
+                location.pathname === '/dashboard/fleet-analytics' ||
+                /^\/dashboard\/tracker\/.+/.test(location.pathname);
+              const onFleetMap = location.pathname === '/dashboard/tracker-overview';
+
+              return (
+                <div className={styles.navGroup}>
+                  <button
+                    type="button"
+                    className={`${styles.iconButton} ${onFleetMonitor ? styles.active : ''}`}
+                    onClick={() => go('/dashboard/fleet-analytics')}
+                  >
+                    <span className={`${styles.iconButtonInner} ${styles.navParentInner}`}>
+                      <Radio size={ICON} />
+                      <span className={styles.navText}>Fleet Monitor</span>
+                      {onFleetSection ? (
+                        <ChevronUp size={14} className={styles.navChevron} aria-hidden />
+                      ) : (
+                        <ChevronDown size={14} className={styles.navChevron} aria-hidden />
+                      )}
+                    </span>
+                  </button>
+                  {onFleetSection && (
+                    <button
+                      type="button"
+                      className={`${styles.iconButton} ${styles.navSubItem} ${
+                        onFleetMap ? styles.active : ''
+                      }`}
+                      onClick={() => go('/dashboard/tracker-overview')}
+                    >
+                      <span className={`${styles.iconButtonInner} ${styles.navSubInner}`}>
+                        <Map size={ICON} />
+                        <span className={styles.navText}>Fleet Map</span>
+                      </span>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ✅ Crane Overview */}
             {(role === 'superadmin' || companyAccess.craneOverview) &&

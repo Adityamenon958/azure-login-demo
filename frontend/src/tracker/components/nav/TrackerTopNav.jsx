@@ -5,8 +5,8 @@ import styles from './TrackerTopNav.module.css';
 
 // ✅ Module sections — add future Tracker pages here
 const NAV_ITEMS = [
-  { to: '/dashboard/fleet-analytics', label: 'Fleet Analytics' },
-  { to: '/dashboard/tracker-overview', label: 'Tracker Overview' },
+  { to: '/dashboard/fleet-analytics', label: 'Fleet Monitor' },
+  { to: '/dashboard/tracker-overview', label: 'Fleet Map' },
 ];
 
 /**

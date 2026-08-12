@@ -83,6 +83,50 @@
   gap: 0;
 }
 
+/* ✅ Parent + nested child (Fleet Monitor → Fleet Map) */
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.navParentInner {
+  width: 100%;
+}
+
+.navChevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.active .navChevron,
+.active :global(.navChevron) {
+  color: #0d7377;
+}
+
+.navSubItem {
+  border-bottom: 1px solid #e8eaed;
+  background-color: #fafbfc;
+}
+
+/* ❗ Must come after .iconButtonInner so padding-left wins */
+.navSubItem .navSubInner {
+  padding: 0.45rem 0.875rem 0.45rem 2.35rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  gap: 0.45rem;
+}
+
+.navSubItem.active .navSubInner,
+.navSubItem:hover .navSubInner {
+  color: inherit;
+}
+
+.navSubItem.active {
+  background-color: #e8eef0;
+}
+
 /*
  * Outer button: ZERO horizontal padding so border-bottom is truly edge-to-edge.
  * Inner span holds the icon/label padding.
