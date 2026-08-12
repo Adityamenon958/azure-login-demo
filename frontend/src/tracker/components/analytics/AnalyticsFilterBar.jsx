@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Maximize2, Minimize2, Loader2 } from 'lucide-react';
 import { ANALYTICS_PRESETS } from '../../constants/analyticsConfig';
 import { analyticsExportUrl } from '../../services/trackerApi';
 import {
@@ -8,6 +8,8 @@ import {
 } from '../../utils/analyticsFormatters';
 import { useKioskMode } from '../../../context/KioskModeContext';
 import styles from './AnalyticsFilterBar.module.css';
+
+const EXPORT_TIMEOUT_MS = 45000;
 
 /** Presets + day stepper + custom range picker + search + export + kiosk. */
 export default function AnalyticsFilterBar({
@@ -21,8 +23,10 @@ export default function AnalyticsFilterBar({
   onPrevDay,
   onNextDay,
   canGoNext = true,
+  exportParams = {},
 }) {
   const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [draftFrom, setDraftFrom] = useState('');
   const [draftTo, setDraftTo] = useState('');
@@ -65,10 +69,29 @@ export default function AnalyticsFilterBar({
   };
 
   const download = async (format) => {
+    if (exporting) return;
+    setExporting(true);
+    setExportOpen(false);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), EXPORT_TIMEOUT_MS);
+
     try {
-      const url = analyticsExportUrl({ from, to, format });
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Export failed');
+      const url = analyticsExportUrl({
+        from,
+        to,
+        format,
+        ...(search ? { search } : {}),
+        ...exportParams,
+      });
+      const res = await fetch(url, {
+        credentials: 'include',
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Export failed (${res.status})`);
+      }
       const blob = await res.blob();
       const disp = res.headers.get('Content-Disposition') || '';
       const match = /filename="([^"]+)"/.exec(disp);
@@ -79,10 +102,15 @@ export default function AnalyticsFilterBar({
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (err) {
+      const msg =
+        err?.name === 'AbortError'
+          ? 'Export timed out. Try a shorter date range or CSV.'
+          : err.message || 'Export failed';
       // eslint-disable-next-line no-alert
-      alert(err.message || 'Export failed');
+      alert(msg);
     } finally {
-      setExportOpen(false);
+      clearTimeout(timer);
+      setExporting(false);
     }
   };
 
@@ -193,10 +221,16 @@ export default function AnalyticsFilterBar({
             type="button"
             className={styles.exportBtn}
             onClick={() => setExportOpen((v) => !v)}
+            disabled={exporting}
           >
-            <Download size={14} /> Export
+            {exporting ? (
+              <Loader2 size={14} className={styles.spin} />
+            ) : (
+              <Download size={14} />
+            )}
+            {exporting ? 'Exporting…' : 'Export'}
           </button>
-          {exportOpen && (
+          {exportOpen && !exporting && (
             <div
               style={{
                 position: 'absolute',

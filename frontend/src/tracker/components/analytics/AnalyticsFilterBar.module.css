@@ -141,10 +141,27 @@
   color: #0d6efd;
 }
 
+.exportBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  border-color: #e5e7eb;
+  color: #64748b;
+}
+
 .kioskActive {
   border-color: #0d7377;
   color: #0d7377;
   background: #f0fdfa;
+}
+
+.spin {
+  animation: exportSpin 0.8s linear infinite;
+}
+
+@keyframes exportSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .customWrap {

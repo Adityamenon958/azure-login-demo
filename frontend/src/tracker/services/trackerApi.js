@@ -94,7 +94,13 @@ export async function fetchAnalyticsVehicleDetail(deviceId, params) {
   return unwrap(res);
 }
 
-export function analyticsExportUrl(params) {
-  const q = new URLSearchParams(params).toString();
-  return `/api/tracker/analytics/export?${q}`;
+export function analyticsExportUrl(params = {}) {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    // ❗ URLSearchParams turns undefined → "undefined" (breaks search filter)
+    if (value === undefined || value === null || value === '') return;
+    q.set(key, String(value));
+  });
+  const qs = q.toString();
+  return qs ? `/api/tracker/analytics/export?${qs}` : '/api/tracker/analytics/export';
 }

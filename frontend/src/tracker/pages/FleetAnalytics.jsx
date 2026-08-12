@@ -99,6 +99,7 @@ export default function FleetAnalytics() {
         onPrevDay={() => shiftRangeByDays(-1)}
         onNextDay={() => shiftRangeByDays(1)}
         canGoNext={canGoNext}
+        exportParams={dataSourceParams}
       />
 
       {error && (

@@ -141,33 +141,46 @@ async function fetchRollups({ devices, fromDate, toDate, granularity }) {
 /**
  * Live "today" partial for devices (IST day) — merged into day-granularity queries.
  */
-async function computeTodayPartials(devices) {
+/**
+ * Live "today" partial for devices (IST day) — merged into day-granularity queries.
+ * ✅ Parallel batches — sequential scans made export hang on larger fleets.
+ */
+async function computeTodayPartials(devices, { concurrency = 8 } = {}) {
   const todayKey = istDayKey(new Date());
   const from = istDayStart(todayKey);
   const to = istDayEndExclusive(todayKey);
+  const end = new Date(Math.min(Date.now(), to.getTime() - 1));
   const out = [];
+  const list = devices || [];
+  const limit = Math.max(1, Math.min(20, concurrency));
 
-  for (const device of devices) {
-    // sequential is safer for many devices; batch small fleets is fine for MVP
-    // eslint-disable-next-line no-await-in-loop
-    const docs = await avlRecordRepository.findHistoryAscForJourney({
-      deviceObjectId: device._id,
-      from,
-      to: new Date(Math.min(Date.now(), to.getTime() - 1)),
-    });
-    if (!docs.length) continue;
-    const m = computeDailyMetrics(docs);
-    out.push({
-      device: device._id,
-      deviceId: device.deviceId,
-      companyName: device.companyName,
-      granularity: 'day',
-      periodKey: todayKey,
-      periodStart: from,
-      ...m,
-      activeDays: m.pointCount > 0 ? 1 : 0,
-      _isTodayPartial: true,
-    });
+  for (let i = 0; i < list.length; i += limit) {
+    const chunk = list.slice(i, i + limit);
+    const partials = await Promise.all(
+      chunk.map(async (device) => {
+        const docs = await avlRecordRepository.findHistoryAscForJourney({
+          deviceObjectId: device._id,
+          from,
+          to: end,
+        });
+        if (!docs.length) return null;
+        const m = computeDailyMetrics(docs);
+        return {
+          device: device._id,
+          deviceId: device.deviceId,
+          companyName: device.companyName,
+          granularity: 'day',
+          periodKey: todayKey,
+          periodStart: from,
+          ...m,
+          activeDays: m.pointCount > 0 ? 1 : 0,
+          _isTodayPartial: true,
+        };
+      })
+    );
+    for (const p of partials) {
+      if (p) out.push(p);
+    }
   }
   return out;
 }
@@ -326,13 +339,19 @@ function buildVehicleRow(device, totals, latestDoc, rangeDays, now = new Date())
   };
 }
 
-async function buildAllVehicleRows(scope, fromDate, toDate) {
+async function buildAllVehicleRows(scope, fromDate, toDate, options = {}) {
+  const { skipTodayPartial = false } = options;
   const devices = await loadDevices(scope);
   const granularity = resolveGranularity(fromDate, toDate);
   let rollups = await fetchRollups({ devices, fromDate, toDate, granularity });
 
   // Merge today partial when querying day granularity and range includes today
-  if (granularity === 'day' && isSameIstDay(toDate, new Date())) {
+  // ❗ Export skips this — sequential AVL scans per device can hang for minutes
+  if (
+    !skipTodayPartial &&
+    granularity === 'day' &&
+    isSameIstDay(toDate, new Date())
+  ) {
     const partials = await computeTodayPartials(devices);
     // Replace any existing today day docs with live partial
     const todayKey = istDayKey(new Date());
@@ -745,7 +764,7 @@ function vehiclesToCsv(items) {
       r.healthScore ?? 0,
       r.healthStatus || '',
       r.maintenanceDue ? 'yes' : 'no',
-      r.lastOnline || '',
+      formatExportTimestamp(r.lastOnline),
       r.offlineDays ?? '',
     ];
     lines.push(row.join(','));
@@ -753,13 +772,58 @@ function vehiclesToCsv(items) {
   return lines.join('\n');
 }
 
+/** ✅ IST display for export files (matches dashboard locale) */
+function formatExportTimestamp(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return String(iso);
+  }
+}
+
 async function getExport(scope, query) {
   const format = (query.format || 'csv').toLowerCase();
-  const { items, from, to, granularity } = await getVehicles(scope, {
-    ...query,
-    page: 1,
-    limit: 10000,
+  const { fromDate, toDate } = parseRange(query.from, query.to);
+  const searchRaw = (query.search || '').trim().toLowerCase();
+  // ❗ Guard: URLSearchParams can stringify undefined → "undefined"
+  const search =
+    !searchRaw || searchRaw === 'undefined' || searchRaw === 'null'
+      ? ''
+      : searchRaw;
+
+  // ✅ Same numbers as Fleet Monitor UI (include today's live partials)
+  // Today partials are parallelized so export stays responsive
+  const { rows, granularity } = await buildAllVehicleRows(scope, fromDate, toDate, {
+    skipTodayPartial: false,
   });
+
+  let items = rows;
+  if (search) {
+    items = rows.filter(
+      (r) =>
+        (r.deviceId || '').toLowerCase().includes(search) ||
+        (r.displayName || '').toLowerCase().includes(search)
+    );
+  }
+
+  // Cap oversized fleets so export always finishes
+  const MAX_EXPORT = 2000;
+  if (items.length > MAX_EXPORT) {
+    items = items.slice(0, MAX_EXPORT);
+  }
+
+  const from = fromDate.toISOString();
+  const to = toDate.toISOString();
 
   if (format === 'csv') {
     return {
@@ -771,7 +835,6 @@ async function getExport(scope, query) {
     };
   }
 
-  // Phase 4 placeholders — Excel/PDF
   if (format === 'xlsx' || format === 'excel') {
     const excel = await buildExcelBuffer(items, { from, to });
     return {
@@ -800,49 +863,56 @@ async function getExport(scope, query) {
   throw badRequest('Unsupported export format (csv|xlsx|pdf)');
 }
 
+/**
+ * ✅ Valid XLSX via ExcelJS (custom zip writer was corrupt → empty sheet in Excel).
+ * Export still stays fast because getExport skips live today partials.
+ */
 async function buildExcelBuffer(items, { from, to }) {
-  // Lightweight XLSX without exceljs: write SpreadsheetML-ish CSV as fallback
-  // Prefer exceljs if available
-  try {
-    // eslint-disable-next-line import/no-extraneous-dependencies, global-require
-    const ExcelJS = require('exceljs');
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Fleet Analytics');
-    ws.addRow([`Fleet Analytics ${from} → ${to}`]);
-    ws.addRow([]);
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'GSN Edge';
+  const ws = wb.addWorksheet('Fleet Analytics');
+
+  ws.addRow([`Fleet Analytics ${from.slice(0, 10)} to ${to.slice(0, 10)}`]);
+  ws.addRow([`Vehicles: ${items.length}`]);
+  ws.addRow([]);
+  ws.addRow([
+    'Device ID',
+    'Name',
+    'Engine ON (h)',
+    'Moving (h)',
+    'Idle (h)',
+    'Parked (h)',
+    'Distance (km)',
+    'Utilization %',
+    'Health',
+    'Maint Due',
+    'Last Online',
+  ]);
+
+  for (const r of items) {
     ws.addRow([
-      'Device ID',
-      'Name',
-      'Engine ON (h)',
-      'Moving (h)',
-      'Idle (h)',
-      'Parked (h)',
-      'Distance (km)',
-      'Utilization %',
-      'Health',
-      'Maint Due',
-      'Last Online',
+      r.deviceId || '',
+      r.displayName || '',
+      round1((r.engineOnMs || 0) / MS_HOUR),
+      round1((r.movingMs || 0) / MS_HOUR),
+      round1((r.idleMs || 0) / MS_HOUR),
+      round1((r.parkedMs || 0) / MS_HOUR),
+      r.distanceKm ?? 0,
+      r.utilizationPct ?? 0,
+      r.healthStatus || '',
+      r.maintenanceDue ? 'yes' : 'no',
+      formatExportTimestamp(r.lastOnline),
     ]);
-    for (const r of items) {
-      ws.addRow([
-        r.deviceId,
-        r.displayName,
-        round1((r.engineOnMs || 0) / MS_HOUR),
-        round1((r.movingMs || 0) / MS_HOUR),
-        round1((r.idleMs || 0) / MS_HOUR),
-        round1((r.parkedMs || 0) / MS_HOUR),
-        r.distanceKm,
-        r.utilizationPct,
-        r.healthStatus,
-        r.maintenanceDue ? 'yes' : 'no',
-        r.lastOnline,
-      ]);
-    }
-    return Buffer.from(await wb.xlsx.writeBuffer());
-  } catch (err) {
-    // Fallback: UTF-8 CSV bytes labeled as xlsx-compatible spreadsheet for clients that accept CSV
-    return Buffer.from(vehiclesToCsv(items), 'utf8');
   }
+
+  // Widen columns a bit for readability
+  ws.columns.forEach((col) => {
+    col.width = 14;
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
 }
 
 async function buildPdfBuffer(items, { from, to }) {
