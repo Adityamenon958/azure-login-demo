@@ -8,11 +8,12 @@
   }
 
   .Dlogo{
-    width: 2.75rem;
-    height: 2.75rem;
+    width: auto;
+    height: 2.35rem;
     padding: 0;
     object-fit: contain;
-    max-height: 2.75rem;
+    max-height: 2.35rem;
+    max-width: 12.5rem;
     flex-shrink: 0;
   }
 

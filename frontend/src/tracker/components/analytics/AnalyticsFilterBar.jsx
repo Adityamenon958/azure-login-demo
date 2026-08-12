@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Maximize2, Minimize2 } from 'lucide-react';
 import { ANALYTICS_PRESETS } from '../../constants/analyticsConfig';
 import { analyticsExportUrl } from '../../services/trackerApi';
 import {
   formatAnalyticsDayLabel,
   isoToDateInputValue,
 } from '../../utils/analyticsFormatters';
+import { useKioskMode } from '../../../context/KioskModeContext';
 import styles from './AnalyticsFilterBar.module.css';
 
-/** Presets + day stepper + custom range picker + search + export. */
+/** Presets + day stepper + custom range picker + search + export + kiosk. */
 export default function AnalyticsFilterBar({
   preset,
   onPreset,
@@ -26,18 +27,17 @@ export default function AnalyticsFilterBar({
   const [draftFrom, setDraftFrom] = useState('');
   const [draftTo, setDraftTo] = useState('');
   const customWrapRef = useRef(null);
+  const { isKiosk, toggleKiosk } = useKioskMode();
 
   const dayLabel = formatAnalyticsDayLabel(to);
   const todayYmd = isoToDateInputValue(new Date().toISOString());
 
-  // Sync draft inputs when opening / when range changes while open
   useEffect(() => {
     if (!customOpen) return;
     setDraftFrom(isoToDateInputValue(from));
     setDraftTo(isoToDateInputValue(to));
   }, [customOpen, from, to]);
 
-  // Close popover on outside click
   useEffect(() => {
     if (!customOpen) return undefined;
     const onDoc = (e) => {
@@ -168,6 +168,16 @@ export default function AnalyticsFilterBar({
             <ChevronRight size={16} strokeWidth={2.25} />
           </button>
         </div>
+
+        <button
+          type="button"
+          className={`${styles.exportBtn} ${isKiosk ? styles.kioskActive : ''}`}
+          onClick={toggleKiosk}
+          title={isKiosk ? 'Exit kiosk mode' : 'Enter kiosk mode (fullscreen)'}
+        >
+          {isKiosk ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          {isKiosk ? 'Exit kiosk' : 'Kiosk'}
+        </button>
       </div>
 
       <div className={styles.right}>

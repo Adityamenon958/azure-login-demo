@@ -141,6 +141,12 @@
   color: #0d6efd;
 }
 
+.kioskActive {
+  border-color: #0d7377;
+  color: #0d7377;
+  background: #f0fdfa;
+}
+
 .customWrap {
   position: relative;
 }

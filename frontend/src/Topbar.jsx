@@ -3,7 +3,7 @@ import { Row, Col, Button, Modal, Dropdown, Form } from 'react-bootstrap';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './Toopbar.module.css';
-import Dlogo from '../src/assets/GSN Solutions 2.png';
+import Dlogo from './assets/GSN EDGE logo.png';
 import { Menu, User, LogOut } from 'lucide-react';
 import { generateCompanyInitials } from './lib/userUtils';
 import { IoGlobeOutline } from 'react-icons/io5';
