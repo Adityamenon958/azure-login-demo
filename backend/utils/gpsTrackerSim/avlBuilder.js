@@ -14,12 +14,13 @@ function buildAvlRecordDoc({
   ignition,
   movement,
   odometerMeters,
+  source,
 }) {
   const speed = Math.max(0, Math.round(Number(speedKmh) || 0));
   const angle = Math.round(((Number(heading) || 0) % 360) + 360) % 360;
   const odo = Math.max(0, Math.round(Number(odometerMeters) || 0));
 
-  return {
+  const doc = {
     device: deviceObjectId,
     imei: String(imei),
     codecId: 8,
@@ -44,6 +45,13 @@ function buildAvlRecordDoc({
     crcValid: true,
     receivedAt: new Date(),
   };
+
+  // ✅ Simulator-only tag (Teltonika ingest omits this)
+  if (source === 'simulator') {
+    doc.source = 'simulator';
+  }
+
+  return doc;
 }
 
 module.exports = { buildAvlRecordDoc };

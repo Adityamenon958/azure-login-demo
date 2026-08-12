@@ -3,7 +3,11 @@
 export function formatHoursFromMs(ms) {
   if (ms == null || Number.isNaN(Number(ms))) return '—';
   const h = Number(ms) / 3600000;
-  if (h < 0.1) return `${Math.round(h * 60)}m`;
+  // ✅ Under 1 hour → minutes (e.g. 0.8 h → 48 mins)
+  if (h < 1) {
+    const mins = Math.max(0, Math.round(h * 60));
+    return `${mins} mins`;
+  }
   return `${Math.round(h * 10) / 10} h`;
 }
 

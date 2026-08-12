@@ -60,6 +60,13 @@ const deviceSchema = new mongoose.Schema({
     },
   },
 
+  // ✅ Fleet sim vs real hardware (sim upsert sets 'simulator'; real Manage Devices leave unset)
+  dataOrigin: {
+    type: String,
+    enum: ['simulator'],
+    default: undefined,
+  },
+
   // ✅ Fleet Analytics — cumulative lifetime engine-ON (incremented by rollup job)
   totalEngineMs: { type: Number, default: 0 },
   engineMsUpdatedAt: { type: Date, default: null },

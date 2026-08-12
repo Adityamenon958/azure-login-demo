@@ -20,7 +20,7 @@ export default function RouteGuard({ children, requiredAccess }) {
       // Define available pages in priority order
       const availablePages = [
         // Tier 1: Dashboard/Overview (Highest Priority) — Tracker is primary GPS dashboard
-        { access: 'trackerOverview', path: '/dashboard/tracker-overview' },
+        { access: 'trackerOverview', path: '/dashboard/fleet-analytics' },
         { access: 'craneOverview', path: '/dashboard/crane-overview' },
         { access: 'elevatorOverview', path: '/dashboard/elevator-overview' },
         { access: 'energyOverview', path: '/dashboard/energy-overview' },

@@ -194,6 +194,7 @@ export function useFleetAnalytics(initialPreset = '7d') {
     summary,
     vehicles: tableData,
     vehiclesWithLive,
+    liveById,
     vehicleTotal,
     hasMore,
     loadMore,

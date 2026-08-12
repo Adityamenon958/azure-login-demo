@@ -91,10 +91,77 @@ function nextIndex(i, len) {
   return (i + 1) % len;
 }
 
+/** Total length of a lat/lon polyline in meters. */
+function polylineLengthMeters(points) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  let sum = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    sum += haversineMeters(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon);
+  }
+  return sum;
+}
+
+/**
+ * Position along a polyline at metersFromStart.
+ * @returns {{ lat: number, lon: number, bearing: number, done: boolean, metersAlong: number }}
+ */
+function positionAlongPolyline(points, metersFromStart) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return { lat: 0, lon: 0, bearing: 0, done: true, metersAlong: 0 };
+  }
+  if (points.length === 1) {
+    return {
+      lat: points[0].lat,
+      lon: points[0].lon,
+      bearing: 0,
+      done: true,
+      metersAlong: 0,
+    };
+  }
+
+  const total = polylineLengthMeters(points) || 1;
+  let remaining = Math.max(0, Number(metersFromStart) || 0);
+
+  if (remaining >= total) {
+    const last = points[points.length - 1];
+    const prev = points[points.length - 2];
+    return {
+      lat: last.lat,
+      lon: last.lon,
+      bearing: bearingDegrees(prev.lat, prev.lon, last.lat, last.lon),
+      done: true,
+      metersAlong: total,
+    };
+  }
+
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const seg = haversineMeters(a.lat, a.lon, b.lat, b.lon) || 0.0001;
+    if (remaining <= seg) {
+      const t = remaining / seg;
+      const pos = interpolate(a.lat, a.lon, b.lat, b.lon, t);
+      return {
+        lat: pos.lat,
+        lon: pos.lon,
+        bearing: bearingDegrees(a.lat, a.lon, b.lat, b.lon),
+        done: false,
+        metersAlong: (Number(metersFromStart) || 0),
+      };
+    }
+    remaining -= seg;
+  }
+
+  const last = points[points.length - 1];
+  return { lat: last.lat, lon: last.lon, bearing: 0, done: true, metersAlong: total };
+}
+
 module.exports = {
   haversineMeters,
   bearingDegrees,
   interpolate,
   buildWaypoints,
   nextIndex,
+  polylineLengthMeters,
+  positionAlongPolyline,
 };

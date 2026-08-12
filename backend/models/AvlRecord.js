@@ -41,6 +41,12 @@ const avlRecordSchema = new mongoose.Schema(
     crcValid: { type: Boolean, default: true },
     receivedAt: { type: Date, default: Date.now },
     rawHex: { type: String, default: undefined },
+    // ✅ Optional: 'simulator' for Fleet Behaviour Simulator writes; real Teltonika omits
+    source: {
+      type: String,
+      enum: ['simulator', 'device'],
+      default: undefined,
+    },
   },
   {
     timestamps: true,

@@ -5,6 +5,14 @@ const { advanceTick, buildAvlFromTick, ensureWaypoints } = require('./tick');
 const { seedHistory } = require('./seedHistory');
 const { buildAvlRecordDoc } = require('./avlBuilder');
 const routeLibrary = require('./routeLibrary');
+const {
+  ensureLegGeometry,
+  prefetchLegsForWaypoints,
+  attachActiveLegToSim,
+  legKey,
+  buildStraightLeg,
+  isOsrmEnabled,
+} = require('./roadRouting');
 
 function generateSimImei() {
   // 15-digit unique-ish IMEI for demos
@@ -42,4 +50,10 @@ module.exports = {
   generateSimImei,
   applyProfileDefaults,
   routeLibrary,
+  ensureLegGeometry,
+  prefetchLegsForWaypoints,
+  attachActiveLegToSim,
+  legKey,
+  buildStraightLeg,
+  isOsrmEnabled,
 };

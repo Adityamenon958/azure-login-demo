@@ -342,8 +342,18 @@ async function postGpsTrackerSimPayload(device) {
   }
 
   const intervalSeconds = device.intervalSeconds || 60;
-  const tickResult = gpsTrackerSim.advanceTick(device, { now: new Date(), intervalSeconds });
-  const avlDoc = gpsTrackerSim.buildAvlFromTick(device, realDevice._id, tickResult, new Date());
+
+  // ✅ Ensure road geometry for current leg once (cached) — not inside advanceTick
+  let simForTick = device;
+  try {
+    simForTick = await gpsTrackerSim.attachActiveLegToSim(device);
+  } catch (legErr) {
+    console.warn(`[sim] ⚠️ Leg attach failed for ${deviceId}:`, legErr.message);
+    simForTick = device;
+  }
+
+  const tickResult = gpsTrackerSim.advanceTick(simForTick, { now: new Date(), intervalSeconds });
+  const avlDoc = gpsTrackerSim.buildAvlFromTick(simForTick, realDevice._id, tickResult, new Date());
 
   await AvlRecord.create(avlDoc);
 
@@ -365,13 +375,18 @@ async function postGpsTrackerSimPayload(device) {
       overrideTicksLeft: runtime.overrideTicksLeft,
       latitude: runtime.currentLat,
       longitude: runtime.currentLon,
+      activeLegKey: runtime.activeLegKey || null,
+      activeLegGeometry: runtime.activeLegGeometry || [],
+      activeLegDistanceM: runtime.activeLegDistanceM || 0,
+      activeLegSource: runtime.activeLegSource || null,
     }
   );
 
   recordTickSuccess(deviceId);
   console.log(
     `[sim] ✅ GPS ${deviceId}: ${tickResult.meta.state} → ${tickResult.meta.nextWaypointName} ` +
-    `@ [${runtime.currentLat.toFixed(5)}, ${runtime.currentLon.toFixed(5)}] ${runtime.currentSpeedKmh}km/h`
+    `@ [${runtime.currentLat.toFixed(5)}, ${runtime.currentLon.toFixed(5)}] ${runtime.currentSpeedKmh}km/h` +
+    `${tickResult.meta.legSource ? ` (${tickResult.meta.legSource})` : ''}`
   );
   return { success: true, tickResult, avlDoc };
 }
@@ -634,6 +649,18 @@ async function startSimulator(deviceId) {
     );
     device = await SimulatorDevice.findOne({ deviceId }).lean();
     console.log(`[sim] 🌱 Seed done for ${deviceId}: inserted=${seedResult.inserted}`);
+  }
+
+  // ✅ Warm OSRM legs for this vehicle (best-effort; failures → straight fallback later)
+  if (device.deviceType === 'gpsTracker' && Array.isArray(device.waypoints) && device.waypoints.length >= 2) {
+    try {
+      const pref = await gpsTrackerSim.prefetchLegsForWaypoints(device.waypoints, { concurrency: 2 });
+      console.log(
+        `[sim] 🗺️ Prefetch legs for ${deviceId}: total=${pref.total} osrm=${pref.warmed} fallbackish=${pref.failed}`
+      );
+    } catch (prefErr) {
+      console.warn(`[sim] ⚠️ Prefetch failed for ${deviceId}:`, prefErr.message);
+    }
   }
 
   attachSimulatorTimer(deviceId, device);
@@ -5792,6 +5819,7 @@ if (ENABLE_SIMULATOR) {
           registered.imei = imei;
           registered.deviceModel = deviceModel;
           registered.displayName = displayName;
+          registered.dataOrigin = 'simulator';
           if (!registered.uid) registered.uid = buildSimUidFromCompany(companyName, DeviceID);
           await registered.save();
         } else {
@@ -5803,6 +5831,7 @@ if (ENABLE_SIMULATOR) {
             deviceModel,
             displayName,
             imei,
+            dataOrigin: 'simulator',
           });
           await registered.save();
         }

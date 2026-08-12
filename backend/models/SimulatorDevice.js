@@ -219,6 +219,18 @@ const simulatorDeviceSchema = new mongoose.Schema({
   tripId: { type: String, default: '' },
   overrideState: { type: String, default: null },
   overrideTicksLeft: { type: Number, default: 0 },
+  // ✅ Current road leg (OSRM or straight fallback) — one leg at a time
+  activeLegKey: { type: String, default: null },
+  activeLegGeometry: [{
+    lat: { type: Number },
+    lon: { type: Number },
+    _id: false,
+  }],
+  activeLegDistanceM: { type: Number, default: 0 },
+  activeLegSource: {
+    type: String,
+    default: null,
+  },
 }, {
   timestamps: true // Adds createdAt and updatedAt automatically
 });

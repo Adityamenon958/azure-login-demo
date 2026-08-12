@@ -13,6 +13,7 @@ export default function VehicleDetailHeader({
   lastRefreshed,
   onBack,
   onRefresh,
+  backLabel = 'Fleet Analytics',
 }) {
   const title = device?.displayName || device?.deviceId || 'Vehicle';
   const mapsUrl = state ? getGoogleMapsUrl(state.latitude, state.longitude) : null;
@@ -28,7 +29,7 @@ export default function VehicleDetailHeader({
   return (
     <header className={styles.header}>
       <button type="button" className={styles.back} onClick={onBack}>
-        ← Back to Tracker Overview
+        ← Back to {backLabel}
       </button>
 
       <div className={styles.row}>

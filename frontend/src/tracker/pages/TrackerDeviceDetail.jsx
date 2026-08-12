@@ -240,7 +240,7 @@ export default function TrackerDeviceDetail() {
         state={state}
         loading={detail.loading && !detail.data}
         lastRefreshed={detail.lastUpdated}
-        onBack={() => navigate('/dashboard/tracker-overview')}
+        onBack={() => navigate('/dashboard/fleet-analytics')}
         onRefresh={handleRefresh}
       />
 
@@ -280,8 +280,17 @@ export default function TrackerDeviceDetail() {
 
       <VehicleLiveStrip state={state} deviceModel={detail.data?.device?.deviceModel} />
 
+      {/* ✅ Availability / Utilization + Hours — above map (replaces side Trip statistics) */}
+      <VehicleTripStats
+        summary={journey.data?.summary}
+        loading={journey.loading && !journey.data}
+        from={applied.from}
+        to={applied.to}
+        preset={preset}
+      />
+
       <Row className="g-2 mb-3" ref={mapSectionRef}>
-        <Col xs={12} lg={8}>
+        <Col xs={12}>
           <TrackerRouteMap
             path={journey.data?.path || []}
             stops={journey.data?.stops || []}
@@ -309,12 +318,6 @@ export default function TrackerDeviceDetail() {
                 setFocusNonce((n) => n + 1);
               }
             }}
-          />
-        </Col>
-        <Col xs={12} lg={4}>
-          <VehicleTripStats
-            summary={journey.data?.summary}
-            loading={journey.loading && !journey.data}
           />
         </Col>
       </Row>

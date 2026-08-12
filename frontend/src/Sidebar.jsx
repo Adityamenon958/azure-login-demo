@@ -196,9 +196,14 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           </Button>
           )}
 
-          {/* ✅ Tracker Overview — primary GPS dashboard */}
+          {/* ✅ Fleet Tracker module — default landing is Fleet Analytics */}
           {(role === 'superadmin' || companyAccess.trackerOverview) && (
-          <Button className={`${styles.iconButton} ${location.pathname.startsWith('/dashboard/tracker') ? styles.active : ''}`} onClick={() => navigate('/dashboard/tracker-overview')}>
+          <Button className={`${styles.iconButton} ${
+            location.pathname.startsWith('/dashboard/tracker')
+            || location.pathname === '/dashboard/fleet-analytics'
+              ? styles.active
+              : ''
+          }`} onClick={() => navigate('/dashboard/fleet-analytics')}>
              <Radio size={22} className={`${styles.navText} me-2`} />
               Tracker Overview
           </Button>

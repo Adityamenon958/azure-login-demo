@@ -5,6 +5,8 @@ const {
   bearingDegrees,
   interpolate,
   nextIndex,
+  positionAlongPolyline,
+  polylineLengthMeters,
 } = require('./routes');
 const { getDayPhase } = require('./schedule');
 const { pickSpeed } = require('./speed');
@@ -32,8 +34,16 @@ function setState(runtime, state, now) {
   }
 }
 
+function clearActiveLeg(runtime) {
+  runtime.activeLegKey = null;
+  runtime.activeLegGeometry = [];
+  runtime.activeLegDistanceM = 0;
+  runtime.activeLegSource = null;
+}
+
 /**
- * Advance one simulation tick. Returns { avlDoc fields inputs, runtimePatch }.
+ * Advance one simulation tick. Returns { telemetry, runtime, meta }.
+ * When sim.activeLegGeometry has >= 2 points, MOVING walks the road polyline.
  */
 function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
   const waypoints = ensureWaypoints(sim);
@@ -54,7 +64,13 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
     tripId: sim.tripId || '',
     overrideState: sim.overrideState,
     overrideTicksLeft: sim.overrideTicksLeft || 0,
+    activeLegKey: sim.activeLegKey || null,
+    activeLegGeometry: Array.isArray(sim.activeLegGeometry) ? sim.activeLegGeometry : [],
+    activeLegDistanceM: sim.activeLegDistanceM || 0,
+    activeLegSource: sim.activeLegSource || null,
   };
+
+  let pathHeading = null;
 
   // Live override for demos
   if (runtime.overrideState && runtime.overrideTicksLeft > 0) {
@@ -77,6 +93,7 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
       runtime.currentSpeedKmh = 0;
       runtime.segmentProgress = 0;
       runtime.currentWaypointIndex = 0;
+      clearActiveLeg(runtime);
     } else if (phase === 'lunch') {
       setState(runtime, STATES.PARKED, now);
       runtime.currentSpeedKmh = 0;
@@ -96,14 +113,30 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
           break;
         case STATES.MOVING:
         case STATES.RETURN_HOME: {
-          const dist = haversineMeters(here.lat, here.lon, next.lat, next.lon) || 1;
+          const useRoad =
+            Array.isArray(runtime.activeLegGeometry) && runtime.activeLegGeometry.length >= 2;
+          const dist = useRoad
+            ? (Number(runtime.activeLegDistanceM) || polylineLengthMeters(runtime.activeLegGeometry) || 1)
+            : (haversineMeters(here.lat, here.lon, next.lat, next.lon) || 1);
+
           const nearStop = runtime.segmentProgress > 0.88;
           const speed = pickSpeed(speedProfile, runtime.currentSpeedKmh, nearStop);
           runtime.currentSpeedKmh = speed;
           const stepMeters = (speed * 1000 * intervalSeconds) / 3600;
           const delta = stepMeters / dist;
           runtime.segmentProgress = Math.min(1, runtime.segmentProgress + delta);
-          const pos = interpolate(here.lat, here.lon, next.lat, next.lon, runtime.segmentProgress);
+
+          let pos;
+          if (useRoad) {
+            const metersAlong = runtime.segmentProgress * dist;
+            const along = positionAlongPolyline(runtime.activeLegGeometry, metersAlong);
+            pos = { lat: along.lat, lon: along.lon };
+            pathHeading = along.bearing;
+            if (along.done) runtime.segmentProgress = 1;
+          } else {
+            pos = interpolate(here.lat, here.lon, next.lat, next.lon, runtime.segmentProgress);
+          }
+
           const moved = haversineMeters(runtime.currentLat, runtime.currentLon, pos.lat, pos.lon);
           runtime.currentLat = pos.lat;
           runtime.currentLon = pos.lon;
@@ -119,6 +152,7 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
             runtime.currentLat = next.lat;
             runtime.currentLon = next.lon;
             runtime.currentSpeedKmh = 0;
+            clearActiveLeg(runtime);
           }
           break;
         }
@@ -128,7 +162,6 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
         case STATES.IDLE: {
           const dwell = here.stopDurationMinutes != null ? here.stopDurationMinutes : stopMins;
           if (minutesInState(runtime, now) >= Math.min(dwell, 8)) {
-            // brief parked then go — or stay idle then move
             if (minutesInState(runtime, now) >= dwell) {
               if (runtime.currentWaypointIndex === 0 && runtime.tripDistanceMeters > 500) {
                 setState(runtime, STATES.PARKED, now);
@@ -145,9 +178,7 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
         case STATES.PARKED: {
           const dwell = here.stopDurationMinutes != null ? here.stopDurationMinutes : stopMins;
           if (minutesInState(runtime, now) >= Math.max(2, dwell * 0.35)) {
-            // Resume route unless we're home after a trip near end of day handled by phase
             if (runtime.currentWaypointIndex === 0 && runtime.tripDistanceMeters > 1000) {
-              // completed loop — start next loop
               runtime.tripDistanceMeters = 0;
               runtime.tripId = `T-${Date.now()}`;
             }
@@ -166,12 +197,9 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
   const nextIdx = nextIndex(idx, waypoints.length);
   const here = waypoints[idx];
   const next = waypoints[nextIdx];
-  const heading = bearingDegrees(
-    runtime.currentLat,
-    runtime.currentLon,
-    next.lat,
-    next.lon
-  );
+  const heading = pathHeading != null
+    ? pathHeading
+    : bearingDegrees(runtime.currentLat, runtime.currentLon, next.lat, next.lon);
   const sig = signalsForState(runtime.fleetState, runtime.currentSpeedKmh);
   const distRemain = haversineMeters(runtime.currentLat, runtime.currentLon, next.lat, next.lon);
   const etaMs =
@@ -194,6 +222,7 @@ function advanceTick(sim, { now = new Date(), intervalSeconds = 60 } = {}) {
       currentWaypointName: here.name,
       etaMs,
       state: runtime.fleetState,
+      legSource: runtime.activeLegSource,
     },
   };
 }
@@ -211,6 +240,7 @@ function buildAvlFromTick(sim, deviceObjectId, tickResult, timestamp = new Date(
     ignition: t.ignition,
     movement: t.movement,
     odometerMeters: t.odometerMeters,
+    source: 'simulator',
   });
 }
 

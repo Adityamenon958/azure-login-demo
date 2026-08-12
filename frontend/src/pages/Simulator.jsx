@@ -1460,6 +1460,7 @@ export default function Simulator() {
               <ul className="text-muted small mb-0">
                 <li>On by default on <strong>Azure App Service</strong> (<code>WEBSITE_SITE_NAME</code>)</li>
                 <li>Off locally unless <code>ENABLE_SIMULATOR=true</code> in <code>.env</code></li>
+                <li>Fleet GPS road routes use OSRM (<code>OSRM_BASE_URL</code>, timeout <code>OSRM_TIMEOUT_MS</code>); set <code>OSRM_ENABLED=false</code> for straight-line fallback</li>
                 <li>Crane → <code>/api/crane/log</code></li>
                 <li>Elevator → <code>/api/elevators/log</code></li>
                 <li>Energy meter → <code>/api/energy-meter/log</code></li>
