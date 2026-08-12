@@ -9,6 +9,7 @@ const {
   fetchStatistics,
   fetchActivity,
   fetchJourney,
+  withDataSourceParams,
 } = trackerApi;
 
 function usePolledResource(fetcher, intervalMs, { enabled = true, deps = [] } = {}) {
@@ -86,21 +87,34 @@ function usePolledResource(fetcher, intervalMs, { enabled = true, deps = [] } = 
   return { data, error, loading, lastUpdated, refresh: () => load(true) };
 }
 
-export function useTrackerOverview(intervalMs) {
-  const fetcher = useCallback(() => fetchOverview(), []);
-  return usePolledResource(fetcher, intervalMs);
+export function useTrackerOverview(intervalMs, dataSourceParams = {}) {
+  const fetcher = useCallback(
+    () => fetchOverview(withDataSourceParams({}, dataSourceParams)),
+    [dataSourceParams.includeReal, dataSourceParams.includeDemo]
+  );
+  return usePolledResource(fetcher, intervalMs, {
+    deps: [dataSourceParams.includeReal, dataSourceParams.includeDemo],
+  });
 }
 
-export function useTrackerLiveLocations(intervalMs) {
-  const fetcher = useCallback(() => fetchLiveLocations(), []);
-  return usePolledResource(fetcher, intervalMs);
+export function useTrackerLiveLocations(intervalMs, dataSourceParams = {}) {
+  const fetcher = useCallback(
+    () => fetchLiveLocations(withDataSourceParams({}, dataSourceParams)),
+    [dataSourceParams.includeReal, dataSourceParams.includeDemo]
+  );
+  return usePolledResource(fetcher, intervalMs, {
+    deps: [dataSourceParams.includeReal, dataSourceParams.includeDemo],
+  });
 }
 
-export function useTrackerDevice(deviceId, intervalMs) {
-  const fetcher = useCallback(() => fetchDevice(deviceId), [deviceId]);
+export function useTrackerDevice(deviceId, intervalMs, dataSourceParams = {}) {
+  const fetcher = useCallback(
+    () => fetchDevice(deviceId, withDataSourceParams({}, dataSourceParams)),
+    [deviceId, dataSourceParams.includeReal, dataSourceParams.includeDemo]
+  );
   return usePolledResource(fetcher, intervalMs, {
     enabled: Boolean(deviceId),
-    deps: [deviceId],
+    deps: [deviceId, dataSourceParams.includeReal, dataSourceParams.includeDemo],
   });
 }
 
@@ -126,14 +140,17 @@ export function useTrackerStats(deviceId, from, to, interval = '5m', enabled = f
   });
 }
 
-export function useTrackerActivity(deviceId, intervalMs, enabled = true) {
+export function useTrackerActivity(deviceId, intervalMs, enabled = true, dataSourceParams = {}) {
   const fetcher = useCallback(
-    () => fetchActivity(deviceId ? { deviceId, limit: 30 } : { limit: 30 }),
-    [deviceId]
+    () =>
+      fetchActivity(
+        withDataSourceParams(deviceId ? { deviceId, limit: 30 } : { limit: 30 }, dataSourceParams)
+      ),
+    [deviceId, dataSourceParams.includeReal, dataSourceParams.includeDemo]
   );
   return usePolledResource(fetcher, intervalMs, {
     enabled: Boolean(enabled),
-    deps: [deviceId, enabled],
+    deps: [deviceId, enabled, dataSourceParams.includeReal, dataSourceParams.includeDemo],
   });
 }
 

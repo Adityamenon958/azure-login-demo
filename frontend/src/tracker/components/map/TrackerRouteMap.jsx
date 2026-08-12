@@ -99,7 +99,25 @@ function SelectedPointMarker({ point }) {
   );
 }
 
-const StopMarker = memo(function StopMarker({ stop, selected, onSelect }) {
+/** ✅ Thin green ring — highlights the latest / current position on the map */
+function LatestPositionRing({ lat, lon, large = false }) {
+  if (!isValidCoordinates(lat, lon)) return null;
+  return (
+    <CircleMarker
+      center={[Number(lat), Number(lon)]}
+      radius={large ? 16 : 13}
+      pathOptions={{
+        color: STATUS_COLORS.moving,
+        weight: 2,
+        fillOpacity: 0,
+        fillColor: 'transparent',
+      }}
+      interactive={false}
+    />
+  );
+}
+
+const StopMarker = memo(function StopMarker({ stop, selected, isLatest, onSelect }) {
   const color = stop.kind === 'idle' ? STATUS_COLORS.idle : STATUS_COLORS.parked;
   return (
     <CircleMarker
@@ -116,6 +134,7 @@ const StopMarker = memo(function StopMarker({ stop, selected, onSelect }) {
       <Popup>
         <div style={{ fontSize: '0.75rem', minWidth: 140 }}>
           <div className="fw-bold">{STATUS_LABELS[stop.kind] || stop.kind}</div>
+          {isLatest && <div className="text-success fw-semibold">Latest position</div>}
           <div>{formatDurationMs(stop.durationMs)}</div>
           <div className="text-muted">{formatIst(stop.arrivedAt)}</div>
           <div className="text-muted">→ {formatIst(stop.departedAt)}</div>
@@ -170,6 +189,37 @@ export default function TrackerRouteMap({
   const hasLiveCoords = isValidCoordinates(liveState?.latitude, liveState?.longitude);
   const combinedFitTrigger = fitTrigger + localFitKey;
   const showMap = path.length > 0 || loading;
+
+  // ✅ Latest position: live → last path point → most recent stop
+  const latestPosition = useMemo(() => {
+    if (showLive && hasLiveCoords) {
+      return {
+        lat: liveState.latitude,
+        lon: liveState.longitude,
+        source: 'live',
+      };
+    }
+    if (path.length > 0) {
+      const last = path[path.length - 1];
+      return { lat: last.lat, lon: last.lon, source: 'path' };
+    }
+    if (stops.length > 0) {
+      const latest = stops.reduce((a, b) =>
+        new Date(b.departedAt || 0).getTime() > new Date(a.departedAt || 0).getTime() ? b : a
+      );
+      return { lat: latest.lat, lon: latest.lon, source: 'stop', stopId: latest.id };
+    }
+    return null;
+  }, [showLive, hasLiveCoords, liveState, path, stops]);
+
+  const isNearLatest = (lat, lon) => {
+    if (!latestPosition) return false;
+    const eps = 0.00008;
+    return (
+      Math.abs(Number(lat) - Number(latestPosition.lat)) < eps &&
+      Math.abs(Number(lon) - Number(latestPosition.lon)) < eps
+    );
+  };
 
   // ✅ Resolve highlight point: path index → stop → explicit focus coords from timeline
   const selectedPoint = useMemo(() => {
@@ -348,6 +398,7 @@ export default function TrackerRouteMap({
                     key={stop.id}
                     stop={stop}
                     selected={selectedStopId === stop.id}
+                    isLatest={isNearLatest(stop.lat, stop.lon)}
                     onSelect={onSelectStop}
                   />
                 ))}
@@ -360,11 +411,19 @@ export default function TrackerRouteMap({
                   <Popup>
                     <div style={{ fontSize: '0.75rem' }}>
                       <strong>Live</strong>
+                      <div className="text-success fw-semibold">Latest position</div>
                       <div>{STATUS_LABELS[liveState.status] || liveState.status}</div>
                       <div>{formatSpeed(liveState.speed)}</div>
                     </div>
                   </Popup>
                 </Marker>
+              )}
+              {latestPosition && (
+                <LatestPositionRing
+                  lat={latestPosition.lat}
+                  lon={latestPosition.lon}
+                  large={latestPosition.source === 'live'}
+                />
               )}
               <SelectedPointMarker point={selectedPoint} />
             </MapContainer>
@@ -381,6 +440,9 @@ export default function TrackerRouteMap({
         </span>
         <span>
           <i style={{ background: STATUS_COLORS.parked }} /> Parked stop
+        </span>
+        <span>
+          <i className={styles.legendLatest} /> Latest position
         </span>
       </div>
     </div>

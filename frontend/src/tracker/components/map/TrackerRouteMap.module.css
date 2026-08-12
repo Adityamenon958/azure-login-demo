@@ -125,3 +125,15 @@
   margin-right: 6px;
   vertical-align: -1px;
 }
+
+.legendLatest {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 2px solid #15803d;
+  background: transparent;
+  box-sizing: border-box;
+}

@@ -398,6 +398,8 @@ async function getSummary(scope, { from, to }) {
     scope.role,
     scope.companyName,
     scope.companyNameFilter,
+    scope.includeReal !== false ? 'r1' : 'r0',
+    scope.includeDemo !== false ? 'd1' : 'd0',
     fromDate.toISOString(),
     toDate.toISOString(),
   ]);
@@ -577,6 +579,8 @@ async function getRankings(scope, query) {
     'rankings',
     scope.companyName,
     scope.companyNameFilter,
+    scope.includeReal !== false ? 'r1' : 'r0',
+    scope.includeDemo !== false ? 'd1' : 'd0',
     fromDate.toISOString(),
     toDate.toISOString(),
     metric,

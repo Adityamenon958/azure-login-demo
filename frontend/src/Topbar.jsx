@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Row, Col, Button, Modal, Dropdown } from 'react-bootstrap';
+import { Row, Col, Button, Modal, Dropdown, Form } from 'react-bootstrap';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './Toopbar.module.css';
@@ -7,6 +7,7 @@ import Dlogo from '../src/assets/GSN Solutions 2.png';
 import { Menu, User, LogOut } from 'lucide-react';
 import { generateCompanyInitials } from './lib/userUtils';
 import { IoGlobeOutline } from 'react-icons/io5';
+import { useTrackerDataSource } from './tracker/context/TrackerDataSourceContext';
 
 export default function Topbar({ toggleSidebar, zoneFilter, onZoneChange }) {
   const navigate = useNavigate();
@@ -21,6 +22,13 @@ export default function Topbar({ toggleSidebar, zoneFilter, onZoneChange }) {
   const [tooltipText, setTooltipText] = useState('');
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const profileRef = useRef(null);
+  const {
+    canEdit: canEditDataSource,
+    showRealData,
+    showDemoData,
+    setShowRealData,
+    setShowDemoData,
+  } = useTrackerDataSource();
 
   // ✅ Fetch user info when component mounts
   useEffect(() => {
@@ -238,6 +246,27 @@ export default function Topbar({ toggleSidebar, zoneFilter, onZoneChange }) {
           </div>
         </div>
         
+        {canEditDataSource && (
+          <div className={styles.profileDataToggles}>
+            <Form.Check
+              type="switch"
+              id="tracker-show-real-data"
+              className={styles.profileDataSwitch}
+              label="Real data"
+              checked={showRealData}
+              onChange={(e) => setShowRealData(e.target.checked)}
+            />
+            <Form.Check
+              type="switch"
+              id="tracker-show-demo-data"
+              className={styles.profileDataSwitch}
+              label="Demo data"
+              checked={showDemoData}
+              onChange={(e) => setShowDemoData(e.target.checked)}
+            />
+          </div>
+        )}
+
         <div className={styles.profileActions}>
           <Button 
             variant="link" 

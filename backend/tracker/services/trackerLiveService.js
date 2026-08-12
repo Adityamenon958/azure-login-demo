@@ -3,11 +3,19 @@ const avlRecordRepository = require('../repositories/avlRecordRepository');
 const { toLiveLocationDto } = require('../mappers/trackerDtoMapper');
 const { validationError } = require('../utils/apiResponse');
 
-async function getLiveLocations({ role, companyName, companyNameFilter }) {
+async function getLiveLocations({
+  role,
+  companyName,
+  companyNameFilter,
+  includeReal = true,
+  includeDemo = true,
+}) {
   const devices = await deviceRepository.findGpsTrackers({
     role,
     companyName,
     companyNameFilter,
+    includeReal,
+    includeDemo,
   });
 
   const latestDocs = await avlRecordRepository.findLatestByDeviceIds(
@@ -29,6 +37,8 @@ async function getLocationsInBounds({
   role,
   companyName,
   companyNameFilter,
+  includeReal = true,
+  includeDemo = true,
   north,
   south,
   east,
@@ -46,6 +56,8 @@ async function getLocationsInBounds({
     role,
     companyName,
     companyNameFilter,
+    includeReal,
+    includeDemo,
   });
 
   const latestDocs = await avlRecordRepository.findLatestInBounds({

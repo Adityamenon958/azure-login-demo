@@ -7,11 +7,19 @@ const {
 /**
  * Build overview KPIs + slim device list.
  */
-async function getOverview({ role, companyName, companyNameFilter }) {
+async function getOverview({
+  role,
+  companyName,
+  companyNameFilter,
+  includeReal = true,
+  includeDemo = true,
+}) {
   const devices = await deviceRepository.findGpsTrackers({
     role,
     companyName,
     companyNameFilter,
+    includeReal,
+    includeDemo,
   });
 
   const latestDocs = await avlRecordRepository.findLatestByDeviceIds(

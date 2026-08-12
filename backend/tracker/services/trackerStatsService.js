@@ -38,6 +38,8 @@ async function getActivity({
   role,
   companyName,
   companyNameFilter,
+  includeReal = true,
+  includeDemo = true,
   deviceId,
   limit,
 }) {
@@ -46,6 +48,8 @@ async function getActivity({
     role,
     companyName,
     companyNameFilter,
+    includeReal,
+    includeDemo,
   });
 
   if (deviceId) {

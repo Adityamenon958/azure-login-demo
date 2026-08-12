@@ -394,6 +394,31 @@
     padding: 0;
   }
 
+  .profileDataToggles {
+    padding: 12px 20px;
+    border-bottom: 1px solid #e9ecef;
+    background-color: #fff;
+  }
+
+  .profileDataSwitch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row-reverse;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #495057;
+  }
+
+  .profileDataSwitch:last-child {
+    margin-bottom: 0;
+  }
+
+  .profileDataSwitch :global(.form-check-input) {
+    margin-left: 0;
+    cursor: pointer;
+  }
+
   .profileAction {
     width: 100%;
     text-align: left;

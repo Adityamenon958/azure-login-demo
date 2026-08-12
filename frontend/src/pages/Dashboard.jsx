@@ -6,6 +6,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import styles from './Dashboard.module.css';
 import Sidebar from '../Sidebar';
 import Topbar from '../Topbar';
+import { TrackerDataSourceProvider } from '../tracker/context/TrackerDataSourceContext';
 import axios from 'axios';
 
 const Dashboard = () => {
@@ -37,19 +38,21 @@ const Dashboard = () => {
   if (!authChecked) return null; // Optional: Add loader
 
   return (
-    <Container fluid className={styles.dashboard}>
-      <Topbar
-        toggleSidebar={toggleSidebar}
-        zoneFilter={zoneFilter}
-        onZoneChange={setZoneFilter}
-      />
-      <Row className="flex-grow-1 g-0">
-        <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />
-        <Col className="p-0">
-          <Outlet context={{ zoneFilter, setZoneFilter }} />
-        </Col>
-      </Row>
-    </Container>
+    <TrackerDataSourceProvider>
+      <Container fluid className={styles.dashboard}>
+        <Topbar
+          toggleSidebar={toggleSidebar}
+          zoneFilter={zoneFilter}
+          onZoneChange={setZoneFilter}
+        />
+        <Row className="flex-grow-1 g-0">
+          <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />
+          <Col className="p-0">
+            <Outlet context={{ zoneFilter, setZoneFilter }} />
+          </Col>
+        </Row>
+      </Container>
+    </TrackerDataSourceProvider>
   );
 };
 

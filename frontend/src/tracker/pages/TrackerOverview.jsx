@@ -22,6 +22,7 @@ import TrackerFilters from '../components/filters/TrackerFilters';
 import TrackerFilterChips from '../components/filters/TrackerFilterChips';
 import TrackerFab from '../components/filters/TrackerFab';
 import TrackerTopNav from '../components/nav/TrackerTopNav';
+import { useTrackerDataSource } from '../context/TrackerDataSourceContext';
 import FleetMapMode from './FleetMapMode';
 import styles from '../styles/TrackerOverview.module.css';
 
@@ -48,16 +49,23 @@ function TrackerOverviewInner() {
     setViewMode,
   } = useTrackerSelection();
 
+  const { apiParams: dataSourceParams } = useTrackerDataSource();
+
   const [showFilters, setShowFilters] = useState(false);
   const [exportNote, setExportNote] = useState('');
 
   const isFleetMap = viewMode === 'fleetMap';
 
-  const overview = useTrackerOverview(OVERVIEW_POLL_MS);
-  const live = useTrackerLiveLocations(LIVE_LOCATIONS_POLL_MS);
-  const detail = useTrackerDevice(selectedDeviceId, DEVICE_DETAIL_POLL_MS);
+  const overview = useTrackerOverview(OVERVIEW_POLL_MS, dataSourceParams);
+  const live = useTrackerLiveLocations(LIVE_LOCATIONS_POLL_MS, dataSourceParams);
+  const detail = useTrackerDevice(selectedDeviceId, DEVICE_DETAIL_POLL_MS, dataSourceParams);
   // ✅ Pause activity poll in Fleet Map — unused there
-  const activity = useTrackerActivity(selectedDeviceId, ACTIVITY_POLL_MS, !isFleetMap);
+  const activity = useTrackerActivity(
+    selectedDeviceId,
+    ACTIVITY_POLL_MS,
+    !isFleetMap,
+    dataSourceParams
+  );
 
   const range = defaultDayRange();
   const stats = useTrackerStats(
@@ -78,6 +86,14 @@ function TrackerOverviewInner() {
       didAutoSelect.current = true;
     }
   }, [overview.data, selectedDeviceId, setSelectedDeviceId]);
+
+  // ✅ Drop selection when superadmin hides that data source
+  useEffect(() => {
+    const devices = overview.data?.devices || [];
+    if (selectedDeviceId && !devices.some((d) => d.deviceId === selectedDeviceId)) {
+      setSelectedDeviceId(devices[0]?.deviceId || null);
+    }
+  }, [overview.data, selectedDeviceId, setSelectedDeviceId, dataSourceParams]);
 
   const handleRefresh = () => {
     overview.refresh();

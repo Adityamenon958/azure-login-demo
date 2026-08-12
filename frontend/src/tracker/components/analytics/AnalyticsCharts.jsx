@@ -14,6 +14,18 @@ import {
 } from 'recharts';
 import styles from './AnalyticsCharts.module.css';
 
+/** Fleet trends palette — soft, readable stacked bars + distinct engine line */
+const CHART_COLORS = {
+  moving: '#34d399', // emerald-400
+  idle: '#fbbf24', // amber-400
+  parked: '#94a3b8', // slate-400 (lighter than old dark navy)
+  engineOn: '#6366f1', // indigo-500 — stands out on bars
+  distance: '#14b8a6', // teal-500
+};
+
+const AXIS = { fontSize: 10, fill: '#64748b' };
+const GRID = { stroke: '#e2e8f0', strokeDasharray: '4 4' };
+
 function periodLabel(key) {
   if (!key) return '';
   if (key.length === 10) {
@@ -85,22 +97,42 @@ export default function AnalyticsCharts({ series = [], loading }) {
       ) : tab === 'hours' ? (
         <div className={styles.chartBoxPrimary}>
           <ResponsiveContainer>
-            <ComposedChart data={hoursData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="moving" stackId="a" fill="#15803d" name="Moving" />
-              <Bar dataKey="idle" stackId="a" fill="#ca8a04" name="Idle" />
-              <Bar dataKey="parked" stackId="a" fill="#334155" name="Parked" />
+            <ComposedChart data={hoursData} barCategoryGap="18%">
+              <CartesianGrid {...GRID} vertical={false} />
+              <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS} axisLine={false} tickLine={false} width={32} />
+              <Tooltip
+                contentStyle={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 4px 12px rgba(15,23,42,0.08)',
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" />
+              <Bar
+                dataKey="moving"
+                stackId="a"
+                fill={CHART_COLORS.moving}
+                name="Moving"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar dataKey="idle" stackId="a" fill={CHART_COLORS.idle} name="Idle" />
+              <Bar
+                dataKey="parked"
+                stackId="a"
+                fill={CHART_COLORS.parked}
+                name="Parked"
+                radius={[6, 6, 0, 0]}
+              />
               <Line
                 type="monotone"
                 dataKey="engineOn"
-                stroke="#0d6efd"
-                strokeWidth={2}
+                stroke={CHART_COLORS.engineOn}
+                strokeWidth={2.5}
                 name="Engine ON"
-                dot={false}
+                dot={{ r: 3, fill: CHART_COLORS.engineOn, strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -109,17 +141,25 @@ export default function AnalyticsCharts({ series = [], loading }) {
         <div className={styles.chartBoxPrimary}>
           <ResponsiveContainer>
             <LineChart data={hoursData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
+              <CartesianGrid {...GRID} vertical={false} />
+              <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS} axisLine={false} tickLine={false} width={32} />
+              <Tooltip
+                contentStyle={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 4px 12px rgba(15,23,42,0.08)',
+                }}
+              />
               <Line
                 type="monotone"
                 dataKey="distance"
-                stroke="#0369a1"
-                strokeWidth={2}
+                stroke={CHART_COLORS.distance}
+                strokeWidth={2.5}
                 name="km"
-                dot={false}
+                dot={{ r: 3, fill: CHART_COLORS.distance, strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
               />
             </LineChart>
           </ResponsiveContainer>

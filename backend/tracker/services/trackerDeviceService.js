@@ -11,6 +11,8 @@ async function listDevices({
   role,
   companyName,
   companyNameFilter,
+  includeReal = true,
+  includeDemo = true,
   page,
   limit,
   search,
@@ -23,6 +25,8 @@ async function listDevices({
     role,
     companyName,
     companyNameFilter,
+    includeReal,
+    includeDemo,
   });
 
   if (search && String(search).trim()) {
@@ -79,7 +83,14 @@ async function listDevices({
   };
 }
 
-async function getDeviceById({ role, companyName, deviceId, companyNameFilter }) {
+async function getDeviceById({
+  role,
+  companyName,
+  deviceId,
+  companyNameFilter,
+  includeReal = true,
+  includeDemo = true,
+}) {
   if (!deviceId) {
     throw validationError('device id is required', { field: 'id' });
   }
@@ -89,6 +100,8 @@ async function getDeviceById({ role, companyName, deviceId, companyNameFilter })
     companyName,
     deviceId,
     companyNameFilter,
+    includeReal,
+    includeDemo,
   });
 
   if (!device) {

@@ -1,5 +1,6 @@
 const { ok } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/trackerErrorHandler');
+const { parseDataSourceFromQuery } = require('../utils/dataSourceFilter');
 const analyticsService = require('../analytics/analyticsService');
 
 function scopeFromReq(req) {
@@ -8,7 +9,14 @@ function scopeFromReq(req) {
     role === 'superadmin' && req.query.companyName
       ? String(req.query.companyName).trim()
       : undefined;
-  return { role, companyName, companyNameFilter };
+  const dataSource = parseDataSourceFromQuery(req.query, role);
+  return {
+    role,
+    companyName,
+    companyNameFilter,
+    includeReal: dataSource.includeReal,
+    includeDemo: dataSource.includeDemo,
+  };
 }
 
 const getSummary = asyncHandler(async (req, res) => {

@@ -3,23 +3,24 @@ import {
   fetchAnalyticsSummary,
   fetchAnalyticsVehicles,
   fetchLiveLocations,
+  withDataSourceParams,
 } from '../services/trackerApi';
 import { defaultAnalyticsRange, shiftAnalyticsRange, customAnalyticsRange } from '../utils/analyticsFormatters';
 import {
   liveLocationsToMap,
   mergeAnalyticsWithLive,
 } from '../utils/mergeAnalyticsWithLive';
-import { LIVE_LOCATIONS_POLL_MS } from '../constants/pollIntervals';
+import { LIVE_LOCATIONS_POLL_MS, ANALYTICS_POLL_MS } from '../constants/pollIntervals';
 
 const GRID_PAGE_SIZE = 100;
 const TABLE_PAGE_SIZE = 25;
 
 /**
  * Fleet Analytics — hybrid analytics + live locations.
- * Analytics refetch on range/search/sort/refresh.
+ * Analytics refetch on range/search/sort/refresh + silent poll (chart + header).
  * Live poll updates status/speed/lastSeen without refetching analytics.
  */
-export function useFleetAnalytics(initialPreset = '7d') {
+export function useFleetAnalytics(initialPreset = '7d', dataSourceParams = {}) {
   const [range, setRange] = useState(() => defaultAnalyticsRange(initialPreset));
   const [summary, setSummary] = useState(null);
   const [vehicleItems, setVehicleItems] = useState([]);
@@ -36,16 +37,19 @@ export function useFleetAnalytics(initialPreset = '7d') {
   const gridPageRef = useRef(1);
 
   const loadAnalytics = useCallback(
-    async ({ append = false } = {}) => {
+    async ({ append = false, silent = false } = {}) => {
       const nextPage = append ? gridPageRef.current + 1 : 1;
       try {
         if (append) setLoadingMore(true);
-        else {
+        else if (!silent) {
           setLoading(true);
           setError(null);
         }
 
-        const params = { from: range.from, to: range.to };
+        const params = withDataSourceParams(
+          { from: range.from, to: range.to },
+          dataSourceParams
+        );
         const [s, v] = await Promise.all([
           append
             ? Promise.resolve(null)
@@ -63,8 +67,8 @@ export function useFleetAnalytics(initialPreset = '7d') {
         if (!append) {
           if (s?.success === false) throw new Error(s.error?.message || 'Summary failed');
           setSummary(s?.data ?? s);
-          const at = s?.generatedAt || null;
-          setGeneratedAt(at ? new Date(at) : null);
+          // ✅ Header "Updated" — last successful analytics fetch on this page
+          setGeneratedAt(new Date());
         }
 
         if (v?.success === false) throw new Error(v.error?.message || 'Vehicles failed');
@@ -74,15 +78,15 @@ export function useFleetAnalytics(initialPreset = '7d') {
         gridPageRef.current = nextPage;
         setVehicleTotal(vData?.total ?? items.length);
         setVehicleItems((prev) => (append ? [...prev, ...items] : items));
-        if (!append) setTablePage(1);
+        if (!append && !silent) setTablePage(1);
       } catch (err) {
-        setError(err.message || 'Failed to load analytics');
+        if (!silent) setError(err.message || 'Failed to load analytics');
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
         setLoadingMore(false);
       }
     },
-    [range.from, range.to, sort.key, sort.order, search]
+    [range.from, range.to, sort.key, sort.order, search, dataSourceParams.includeReal, dataSourceParams.includeDemo]
   );
 
   // Analytics load on deps change
@@ -91,13 +95,31 @@ export function useFleetAnalytics(initialPreset = '7d') {
     loadAnalytics({ append: false });
   }, [loadAnalytics]);
 
+  // ✅ Silent analytics poll — fleet chart + header Updated (same cadence as live)
+  useEffect(() => {
+    let cancelled = false;
+
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (cancelled) return;
+      gridPageRef.current = 1;
+      loadAnalytics({ append: false, silent: true });
+    };
+
+    const id = setInterval(poll, ANALYTICS_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [loadAnalytics]);
+
   // Live locations poll (independent of analytics)
   useEffect(() => {
     let cancelled = false;
 
     const poll = async () => {
       try {
-        const live = await fetchLiveLocations();
+        const live = await fetchLiveLocations(withDataSourceParams({}, dataSourceParams));
         if (cancelled) return;
         setLiveById(liveLocationsToMap(live));
       } catch {
@@ -111,7 +133,7 @@ export function useFleetAnalytics(initialPreset = '7d') {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [dataSourceParams.includeReal, dataSourceParams.includeDemo]);
 
   const vehiclesWithLive = useMemo(
     () => mergeAnalyticsWithLive(vehicleItems, liveById),
@@ -178,12 +200,12 @@ export function useFleetAnalytics(initialPreset = '7d') {
     gridPageRef.current = 1;
     await loadAnalytics({ append: false });
     try {
-      const live = await fetchLiveLocations();
+      const live = await fetchLiveLocations(withDataSourceParams({}, dataSourceParams));
       setLiveById(liveLocationsToMap(live));
     } catch {
       /* ignore */
     }
-  }, [loadAnalytics]);
+  }, [loadAnalytics, dataSourceParams.includeReal, dataSourceParams.includeDemo]);
 
   return {
     range,

@@ -6,6 +6,14 @@ function unwrap(response) {
   return response.data;
 }
 
+/** Merge superadmin real/demo filter params into tracker API calls */
+export function withDataSourceParams(params = {}, dataSource = {}) {
+  const next = { ...params };
+  if (dataSource.includeReal === false) next.includeReal = false;
+  if (dataSource.includeDemo === false) next.includeDemo = false;
+  return next;
+}
+
 export async function fetchOverview(params = {}) {
   const res = await client.get('/api/tracker/overview', { params });
   return unwrap(res);

@@ -8,6 +8,7 @@ import AnalyticsVehicleGrid from '../components/analytics/AnalyticsVehicleGrid';
 import VehicleAnalyticsTable from '../components/analytics/VehicleAnalyticsTable';
 import { useFleetAnalytics } from '../hooks/useFleetAnalytics';
 import { useTimestampTick } from '../hooks/useTimestampTick';
+import { useTrackerDataSource } from '../context/TrackerDataSourceContext';
 import styles from '../styles/TrackerOverview.module.css';
 
 const AnalyticsCharts = lazy(() => import('../components/analytics/AnalyticsCharts'));
@@ -19,6 +20,7 @@ const AnalyticsCharts = lazy(() => import('../components/analytics/AnalyticsChar
  */
 export default function FleetAnalytics() {
   const navigate = useNavigate();
+  const { apiParams: dataSourceParams } = useTrackerDataSource();
   const {
     range,
     applyPreset,
@@ -42,7 +44,7 @@ export default function FleetAnalytics() {
     search,
     setSearch,
     refresh,
-  } = useFleetAnalytics('7d');
+  } = useFleetAnalytics('7d', dataSourceParams);
 
   const now = useTimestampTick();
 
