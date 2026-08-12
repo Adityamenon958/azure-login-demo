@@ -1,17 +1,19 @@
 .main {
     background-color: #EEF6F8;
-    height: calc(100vh - 4.5rem);
+    height: calc(100vh - 2.5rem);
     overflow-y: auto;
     border-top-left-radius: 1.625rem;
-    width: calc(100vw - 14rem);
+    width: 100%;
+    max-width: 100%;
   }
 
   .mainCO {
     background-color: #EEF6F8;
-    height: calc(100vh - 4.5rem);
+    height: calc(100vh - 2.5rem);
     overflow-y: auto;
     border-top-left-radius: 1.625rem;
-    width: calc(100vw - 14rem);
+    width: 100%;
+    max-width: 100%;
   }
 
   
@@ -335,10 +337,11 @@
 /* keeps .main, .toprow, .bottomrow exactly as you had */
 .main3 {
   background-color: #EEF6F8;
-  height: calc(100vh - 4.5rem);
+  height: calc(100vh - 2.5rem);
   overflow-y: auto;
   border-top-left-radius: 1.625rem;
-  width: calc(100vw - 14rem);
+  width: 100%;
+  max-width: 100%;
   padding: 1rem;
   padding-left: 20px;
 }
@@ -557,10 +560,11 @@
 /* DynamicDb main container */
 .dynamicDbMain {
   background-color: #EEF6F8;
-  height: calc(100vh - 4.5rem);
+  height: calc(100vh - 2.5rem);
   overflow-y: auto;
   border-top-left-radius: 1.625rem;
-  width: calc(100vw - 14rem);
+  width: 100%;
+  max-width: 100%;
   padding: 1rem;
   padding-left: 20px;
 }
@@ -601,10 +605,11 @@
 /* Crane main container */
 .craneMain {
   background-color: #EEF6F8;
-  height: calc(100vh - 4.5rem);
+  height: calc(100vh - 2.5rem);
   overflow-y: auto;
   border-top-left-radius: 1.625rem;
-  width: calc(100vw - 14rem);
+  width: 100%;
+  max-width: 100%;
   padding: 1rem;
   padding-left: 20px;
 }

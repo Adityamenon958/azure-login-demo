@@ -1,17 +1,14 @@
 .dashboard {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  
- 
-  
-  .sidebar {
-    background-color: #ffffff;
-    height: calc(100vh - 4.5rem);
-    
-    max-width: 15rem;
-  }
-  
-  
-  
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  /* ✅ Kill Bootstrap .container-fluid horizontal padding (was 12px L/R gap) */
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.sidebar {
+  background-color: #ffffff;
+  height: calc(100vh - 2.5rem);
+  max-width: 15rem;
+}

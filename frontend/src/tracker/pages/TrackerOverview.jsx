@@ -112,7 +112,7 @@ function TrackerOverviewInner() {
   };
 
   return (
-    <Col xs={12} md={9} lg={10} xl={10} className={`${styles.page} p-3`}>
+    <Col xs={12} className={`${styles.page} p-3`}>
       {/* ✅ Single header bar: module navigation + refresh + filter actions */}
       <TrackerTopNav
         lastUpdated={lastUpdated}

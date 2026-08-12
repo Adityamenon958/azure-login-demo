@@ -43,10 +43,10 @@ const Dashboard = () => {
         zoneFilter={zoneFilter}
         onZoneChange={setZoneFilter}
       />
-      <Row className="flex-grow-1">
+      <Row className="flex-grow-1 g-0">
         <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />
         <Col className="p-0">
-        <Outlet context={{ zoneFilter, setZoneFilter }} />
+          <Outlet context={{ zoneFilter, setZoneFilter }} />
         </Col>
       </Row>
     </Container>

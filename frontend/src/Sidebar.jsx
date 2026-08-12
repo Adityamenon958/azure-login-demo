@@ -1,19 +1,31 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Col, Button, Nav, Spinner } from 'react-bootstrap';
-import { LayoutDashboard, FileText, Settings, LogOut, X, Activity, Radio } from 'lucide-react';
+import { Button, Spinner } from 'react-bootstrap';
+import {
+  LayoutDashboard,
+  FileText,
+  Settings,
+  LogOut,
+  Activity,
+  Radio,
+  UserPlus,
+  PlusSquare,
+  Truck,
+  Zap,
+  Bell,
+  User,
+} from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { googleLogout } from '@react-oauth/google';
 import styles from './Sidebar.module.css';
-import { UserPlus } from 'lucide-react';
-import { HiOutlineOfficeBuilding } from "react-icons/hi";
-import { PlusSquare } from 'lucide-react';
-import { MdOutlineSubscriptions } from "react-icons/md";
-import { Truck } from 'lucide-react';
-import { PiElevatorDuotone } from "react-icons/pi";
-import { Zap, Bell } from 'lucide-react';
+import { HiOutlineOfficeBuilding } from 'react-icons/hi';
+import { MdOutlineSubscriptions } from 'react-icons/md';
+import { PiElevatorDuotone } from 'react-icons/pi';
 import Dlogo from './assets/GSN Solutions 1.png';
 
 import axios from 'axios';
+
+// ✅ Connectwell-like density — keep all icons the same size
+const ICON = 16;
 
 export default function Sidebar({ isOpen, closeSidebar }) {
   const navigate = useNavigate();
@@ -21,6 +33,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const sidebarRef = useRef(null);
 
   const [role, setRole] = useState('');
+  const [userName, setUserName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [subscriptionStatus, setSubscriptionStatus] = useState('inactive');
   const [companyAccess, setCompanyAccess] = useState({});
@@ -34,7 +47,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         const res = await axios.get('/api/auth/userinfo', { withCredentials: true });
         setRole(res.data.role);
         setCompanyName(res.data.companyName);
-        
+        setUserName(res.data.name || res.data.email || '');
+
         // ✅ Fetch company access permissions (only for non-superadmin users)
         if (res.data.role !== 'superadmin') {
           await fetchCompanyAccess(res.data.companyName);
@@ -48,7 +62,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           }
         }
       } catch (err) {
-        console.error("❌ Failed to fetch user info from cookies:", err.message);
+        console.error('❌ Failed to fetch user info from cookies:', err.message);
         setAccessLoading(false);
       }
     };
@@ -58,7 +72,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         const res = await axios.get('/api/subscription/status', { withCredentials: true });
         setSubscriptionStatus(res.data.active ? 'active' : 'inactive');
       } catch (err) {
-        console.error("❌ Failed to fetch subscription status:", err.message);
+        console.error('❌ Failed to fetch subscription status:', err.message);
         setSubscriptionStatus('inactive');
       }
     };
@@ -77,7 +91,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           axios.get('/api/check-dashboard-access/addUsers', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addDevices', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/subscription', { withCredentials: true }),
-          axios.get('/api/check-dashboard-access/settings', { withCredentials: true })
+          axios.get('/api/check-dashboard-access/settings', { withCredentials: true }),
         ]);
 
         const access = {
@@ -91,13 +105,13 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           addUsers: accessChecks[7].data.hasAccess,
           addDevices: accessChecks[8].data.hasAccess,
           subscription: accessChecks[9].data.hasAccess,
-          settings: accessChecks[10].data.hasAccess
+          settings: accessChecks[10].data.hasAccess,
         };
 
         setCompanyAccess(access);
         console.log('✅ Company access loaded for:', company, access);
       } catch (err) {
-        console.error("❌ Failed to fetch company access:", err.message);
+        console.error('❌ Failed to fetch company access:', err.message);
         // Set default access if API fails
         setCompanyAccess({
           home: true,
@@ -111,7 +125,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           addUsers: true,
           addDevices: true,
           subscription: true,
-          settings: true
+          settings: true,
         });
       } finally {
         setAccessLoading(false);
@@ -128,8 +142,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       googleLogout();
       navigate('/');
     } catch (err) {
-      console.error("Logout failed:", err.message);
+      console.error('Logout failed:', err.message);
       navigate('/');
+    }
+  };
+
+  const go = (path) => {
+    navigate(path);
+    if (typeof window !== 'undefined' && window.innerWidth < 800) {
+      closeSidebar?.();
     }
   };
 
@@ -149,168 +170,247 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     };
   }, [isOpen, closeSidebar]);
 
+  const isActive = (match) =>
+    typeof match === 'function' ? match(location.pathname) : location.pathname === match;
+
+  const navBtn = (pathOrFn, className, children, extra = {}) => (
+    <button
+      type="button"
+      className={`${styles.iconButton} ${isActive(pathOrFn) ? styles.active : ''}`}
+      onClick={() => {
+        if (typeof pathOrFn === 'string') go(pathOrFn);
+      }}
+      {...extra}
+    >
+      <span className={styles.iconButtonInner}>{children}</span>
+    </button>
+  );
+
   if (accessLoading) {
     return (
       <div className={`${styles.sidebarWrapper} ${isOpen ? styles.open : ''}`}>
-        <Col xs={12} md={3} lg={2} xl={2} className={`${styles.sidebar} p-0 pt-4`}>
-          <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
-            <Spinner animation="border" variant="primary" />
+        <div className={styles.sidebar}>
+          <div className={styles.loadingWrap}>
+            <Spinner animation="border" size="sm" variant="secondary" />
           </div>
-        </Col>
+        </div>
       </div>
     );
   }
 
+  const roleLabel = role ? String(role) : '';
+  const companyLine = [roleLabel, companyName].filter(Boolean).join(' · ');
+
   return (
     <div className={`${styles.sidebarWrapper} ${isOpen ? styles.open : ''}`} ref={sidebarRef}>
-      <Col xs={12} md={3} lg={2} xl={2} className={`${styles.sidebar} p-0 pt-4`}>
-        {/* ✅ Company Branding Section */}
-        <div className={`${styles.sidebarBranding} px-3 mb-4`}>
+      {/* ✅ Plain div — Bootstrap Col gutters were insetting the divider lines */}
+      <div className={styles.sidebar}>
+        {/* ✅ Company Branding — mobile drawer */}
+        <div className={styles.sidebarBranding}>
           <div className="d-flex align-items-center">
             <img src={Dlogo} className={`${styles.sidebarLogo} me-2`} alt="Logo" />
             <div className="d-flex flex-column">
               <h5 className={`${styles.sidebarCompanyName} mb-0`}>
                 {companyName || 'Company'}
               </h5>
-              <small className={`${styles.sidebarSubtitle}`}>
-                Edge
-              </small>
+              <small className={styles.sidebarSubtitle}>Edge</small>
             </div>
           </div>
         </div>
 
-        <Nav className="flex-column align-items-start px-3">
-          {/* ✅ Home - Check access for non-superadmin */}
-          {(role === 'superadmin' || companyAccess.home) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard' ? styles.active : ''}`} onClick={() => navigate('/dashboard')}>
-            <LayoutDashboard size={20} className="me-2" />
-            Home
+        <div className={styles.navScroll}>
+          <nav className={styles.navList} aria-label="Main">
+            {/* ✅ Home */}
+            {(role === 'superadmin' || companyAccess.home) &&
+              navBtn('/dashboard', null, (
+                <>
+                  <LayoutDashboard size={ICON} />
+                  <span className={styles.navText}>Home</span>
+                </>
+              ))}
+
+            {/* ✅ Dashboard */}
+            {(role === 'superadmin' || companyAccess.dashboard) &&
+              navBtn('/dashboard/device', null, (
+                <>
+                  <FileText size={ICON} />
+                  <span className={styles.navText}>Dashboard</span>
+                </>
+              ))}
+
+            {/* ✅ Fleet Tracker — default landing is Fleet Analytics */}
+            {(role === 'superadmin' || companyAccess.trackerOverview) && (
+              <button
+                type="button"
+                className={`${styles.iconButton} ${
+                  location.pathname.startsWith('/dashboard/tracker') ||
+                  location.pathname === '/dashboard/fleet-analytics'
+                    ? styles.active
+                    : ''
+                }`}
+                onClick={() => go('/dashboard/fleet-analytics')}
+              >
+                <span className={styles.iconButtonInner}>
+                  <Radio size={ICON} />
+                  <span className={styles.navText}>Tracker Overview</span>
+                </span>
+              </button>
+            )}
+
+            {/* ✅ Crane Overview */}
+            {(role === 'superadmin' || companyAccess.craneOverview) &&
+              navBtn('/dashboard/crane-overview', null, (
+                <>
+                  <Truck size={ICON} />
+                  <span className={styles.navText}>Crane Overview</span>
+                </>
+              ))}
+
+            {/* ✅ Elevator Overview */}
+            {(role === 'superadmin' || companyAccess.elevatorOverview) &&
+              navBtn('/dashboard/elevator-overview', null, (
+                <>
+                  <PiElevatorDuotone size={ICON} />
+                  <span className={styles.navText}>Elevator Overview</span>
+                </>
+              ))}
+
+            {/* ✅ Energy Overview */}
+            {(role === 'superadmin' || companyAccess.energyOverview) &&
+              navBtn('/dashboard/energy-overview', null, (
+                <>
+                  <Zap size={ICON} />
+                  <span className={styles.navText}>Energy Overview</span>
+                </>
+              ))}
+
+            {(role === 'superadmin' || companyAccess.energyOverview) &&
+              navBtn('/dashboard/energy-alarms', null, (
+                <>
+                  <Bell size={ICON} />
+                  <span className={styles.navText}>Fleet Alarms</span>
+                </>
+              ))}
+
+            {/* ✅ Reports */}
+            {(role === 'superadmin' || companyAccess.reports) &&
+              navBtn('/dashboard/reports', null, (
+                <>
+                  <FileText size={ICON} />
+                  <span className={styles.navText}>Report</span>
+                </>
+              ))}
+
+            {/* ✅ Manage Company — Superadmin only */}
+            {role === 'superadmin' && (
+              <button
+                type="button"
+                className={`${styles.iconButton2} ${
+                  location.pathname === '/dashboard/managecompany' ? styles.active2 : ''
+                }`}
+                onClick={() => go('/dashboard/managecompany')}
+              >
+                <span className={styles.iconButtonInner}>
+                  <HiOutlineOfficeBuilding size={ICON} />
+                  <span className={styles.Text}>Manage Company</span>
+                </span>
+              </button>
+            )}
+
+            {/* ✅ Simulator — superadmin only */}
+            {role === 'superadmin' && simulatorAvailable &&
+              navBtn('/dashboard/simulator', null, (
+                <>
+                  <Activity size={ICON} />
+                  <span className={styles.navText}>Simulator</span>
+                </>
+              ))}
+
+            {/* ❗ TEMPORARY demo — remove after client demo */}
+            <button
+              type="button"
+              className={`${styles.iconButton} ${
+                location.pathname === '/demo/live-data' ? styles.active : ''
+              }`}
+              onClick={() => go('/demo/live-data')}
+            >
+              <span className={styles.iconButtonInner}>
+                <Radio size={ICON} />
+                <span className={styles.navText}>Live Data Demo</span>
+              </span>
+            </button>
+
+            {/* ✅ Manage Users */}
+            {((role === 'admin' && companyAccess.addUsers) || role === 'superadmin') && (
+              <button
+                type="button"
+                className={`${styles.iconButton} ${
+                  location.pathname === '/dashboard/adduser' ? styles.active : ''
+                }`}
+                onClick={() => go('/dashboard/adduser')}
+                disabled={subscriptionStatus !== 'active' && role !== 'superadmin'}
+              >
+                <span className={styles.iconButtonInner}>
+                  <UserPlus size={ICON} />
+                  <span className={styles.navText}>Manage Users</span>
+                </span>
+              </button>
+            )}
+
+            {/* ✅ Manage Device */}
+            {((role === 'admin' && companyAccess.addDevices) || role === 'superadmin') && (
+              <button
+                type="button"
+                className={`${styles.iconButton} ${
+                  location.pathname === '/dashboard/adddevice' ? styles.active : ''
+                }`}
+                onClick={() => go('/dashboard/adddevice')}
+                disabled={subscriptionStatus !== 'active' && role !== 'superadmin'}
+              >
+                <span className={styles.iconButtonInner}>
+                  <PlusSquare size={ICON} />
+                  <span className={styles.navText}>Manage Device</span>
+                </span>
+              </button>
+            )}
+
+            {/* ✅ Subscription */}
+            {(role === 'superadmin' || companyAccess.subscription) &&
+              navBtn('/dashboard/subscription', null, (
+                <>
+                  <MdOutlineSubscriptions size={ICON} />
+                  <span className={styles.navText}>Subscription</span>
+                </>
+              ))}
+
+            {/* ✅ Settings */}
+            {(role === 'superadmin' || companyAccess.settings) &&
+              navBtn('/dashboard/settings', null, (
+                <>
+                  <Settings size={ICON} />
+                  <span className={styles.navText}>Settings</span>
+                </>
+              ))}
+          </nav>
+        </div>
+
+        {/* ✅ Bottom profile + Log out (Connectwell pattern) */}
+        <div className={styles.sidebarFooter}>
+          <div className={styles.userBlock}>
+            <div className={styles.userAvatar} aria-hidden>
+              <User size={14} />
+            </div>
+            <div className={styles.userMeta}>
+              <div className={styles.userName}>{userName || 'User'}</div>
+              <div className={styles.userRole}>{companyLine || '—'}</div>
+            </div>
+          </div>
+          <Button className={styles.logoutButton} onClick={handleLogout}>
+            <LogOut size={14} />
+            Log out
           </Button>
-          )}
-
-          {/* ✅ Dashboard - Check access for non-superadmin */}
-          {(role === 'superadmin' || companyAccess.dashboard) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/device' ? styles.active : ''}`} onClick={() => navigate('/dashboard/device')}>
-            <FileText size={20} className={`${styles.navText} me-2`} />
-              Dashboard
-          </Button>
-          )}
-
-          {/* ✅ Fleet Tracker module — default landing is Fleet Analytics */}
-          {(role === 'superadmin' || companyAccess.trackerOverview) && (
-          <Button className={`${styles.iconButton} ${
-            location.pathname.startsWith('/dashboard/tracker')
-            || location.pathname === '/dashboard/fleet-analytics'
-              ? styles.active
-              : ''
-          }`} onClick={() => navigate('/dashboard/fleet-analytics')}>
-             <Radio size={22} className={`${styles.navText} me-2`} />
-              Tracker Overview
-          </Button>
-          )}
-
-          {/* ✅ Crane Overview - Check access for non-superadmin (legacy; hide via access flag) */}
-          {(role === 'superadmin' || companyAccess.craneOverview) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/crane-overview' ? styles.active : ''}`} onClick={() => navigate('/dashboard/crane-overview')}>
-             <Truck size={30} className={`${styles.navText} me-2`} />
-              Crane Overview
-          </Button>
-          )}
-
-          {/* ✅ Elevator Overview - Check access for non-superadmin */}
-          {(role === 'superadmin' || companyAccess.elevatorOverview) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/elevator-overview' ? styles.active : ''}`} onClick={() => navigate('/dashboard/elevator-overview')}>
-    <PiElevatorDuotone size={30} className={`${styles.navText} me-2`} />
-    Elevator Overview
-</Button>
-          )}
-
-          {/* ✅ Energy Overview */}
-          {(role === 'superadmin' || companyAccess.energyOverview) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/energy-overview' ? styles.active : ''}`} onClick={() => navigate('/dashboard/energy-overview')}>
-            <Zap size={22} className={`${styles.navText} me-2`} />
-            Energy Overview
-          </Button>
-          )}
-
-          {(role === 'superadmin' || companyAccess.energyOverview) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/energy-alarms' ? styles.active : ''}`} onClick={() => navigate('/dashboard/energy-alarms')}>
-            <Bell size={20} className={`${styles.navText} me-2`} />
-            Fleet Alarms
-          </Button>
-          )}
-
-          {/* ✅ Reports - Check access for non-superadmin */}
-          {(role === 'superadmin' || companyAccess.reports) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/reports' ? styles.active : ''}`} onClick={() => navigate('/dashboard/reports')}>
-            <FileText size={20} className={`${styles.navText} me-2`} />
-            Report
-          </Button>
-          )}
-
-          {/* ✅ Manage Company - Superadmin only */}
-          {role === "superadmin" && (
-            <Button className={`${styles.iconButton2} ${location.pathname === '/dashboard/managecompany' ? styles.active2 : ''}`} onClick={() => navigate('/dashboard/managecompany')}>
-              <HiOutlineOfficeBuilding size={25} className={`${styles.navText} me-2`} />
-              <div className={`${styles.Text} text-nowrap`}>Manage Company</div>
-            </Button>
-          )}
-
-          {/* ✅ Simulator — superadmin only, Azure (or ENABLE_SIMULATOR=true locally) */}
-          {role === "superadmin" && simulatorAvailable && (
-            <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/simulator' ? styles.active : ''}`} onClick={() => navigate('/dashboard/simulator')}>
-              <Activity size={20} className="me-2" />
-              Simulator
-            </Button>
-          )}
-
-          {/* ❗ TEMPORARY demo — remove after client demo (with /demo/live-data feature) */}
-          <Button
-            className={`${styles.iconButton} ${location.pathname === '/demo/live-data' ? styles.active : ''}`}
-            onClick={() => navigate('/demo/live-data')}
-          >
-            <Radio size={20} className="me-2" />
-            Live Data Demo
-          </Button>
-
-          {/* ✅ Add Users - Check access for non-superadmin OR allow superadmin */}
-          {((role === "admin" && companyAccess.addUsers) || role === "superadmin") && (
-            <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/adduser' ? styles.active : ''}`} onClick={() => navigate('/dashboard/adduser')} disabled={subscriptionStatus !== 'active' && role !== 'superadmin'}>
-              <UserPlus size={20} className={`${styles.navText} me-2`} />
-              Manage Users
-            </Button>
-          )}
-
-          {/* ✅ Add Device - Check access for non-superadmin */}
-          {((role === "admin" && companyAccess.addDevices) || role === "superadmin") && (
-            <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/adddevice' ? styles.active : ''}`} onClick={() => navigate('/dashboard/adddevice')} disabled={subscriptionStatus !== 'active' && role !== 'superadmin'}>
-              <PlusSquare size={20} className="me-2" />
-              Manage Device
-            </Button>
-          )}
-
-          {/* ✅ Subscription - Check access for non-superadmin */}
-          {(role === 'superadmin' || companyAccess.subscription) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/subscription' ? styles.active : ''}`} onClick={() => navigate('/dashboard/subscription')}>
-            <MdOutlineSubscriptions size={20} className="me-2" />
-            Subscription
-          </Button>
-          )}
-
-          {/* ✅ Settings - Check access for non-superadmin */}
-          {(role === 'superadmin' || companyAccess.settings) && (
-          <Button className={`${styles.iconButton} ${location.pathname === '/dashboard/settings' ? styles.active : ''}`} onClick={() => navigate('/dashboard/settings')}>
-            <Settings size={20} className="me-2" />
-            Settings
-          </Button>
-          )}
-
-          <Button className={styles.iconButton} onClick={handleLogout}>
-            <LogOut size={20} className="me-2" />
-            Logout
-          </Button>
-        </Nav>
-      </Col>
+        </div>
+      </div>
     </div>
   );
 }

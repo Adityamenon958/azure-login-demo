@@ -1,129 +1,281 @@
+.sidebarWrapper {
+  display: none;
+  flex: 0 0 220px;
+  width: 220px;
+  max-width: 220px;
+  background-color: #ffffff;
+  overflow: hidden;
+  /* ✅ Bootstrap .row > * adds gutter padding — wipe it */
+  padding: 0 !important;
+  margin: 0 !important;
+  --bs-gutter-x: 0;
+}
+
 .sidebar {
-    height: 100%;
-    padding: 1rem;
-    background-color: white; /* or your theme color */
-  }
-  .sidebarWrapper {
-    display: none;
-    max-width: 14rem;
-    background-color: white;
-    overflow-y: auto;
-  }
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  /* ✅ Match topbar (2.5rem) — same as content page height */
+  height: calc(100vh - 2.5rem);
+  max-height: calc(100vh - 2.5rem);
+  z-index: 1050;
+  width: 100%;
+  max-width: 220px;
+  border-right: none;
+  /* ❗ Kill Bootstrap Col gutters if class ever reappears */
+  padding: 0 !important;
+  margin: 0 !important;
+}
 
-  .sidebar {
-    background-color: #ffffff;
-    height: calc(100vh - 9rem);
-    z-index: 1050;
-    max-width: 14rem;
-  }
+/* ✅ Sidebar Branding — mobile drawer only */
+.sidebarBranding {
+  display: none;
+  flex-shrink: 0;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
 
-  .vertical_line {
-    border-bottom: 1px solid #ccc;
-    width: 190px;
-  }
+.sidebarLogo {
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
 
-  /* ✅ Sidebar Branding Styles - Hidden on desktop */
+.sidebarCompanyName {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+
+.sidebarSubtitle {
+  color: #6c757d;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+@media (max-width: 799px) {
   .sidebarBranding {
-    display: none;
+    display: block;
   }
+}
 
-  .sidebarLogo {
-    width: 2.5rem;
-    height: 2.5rem;
-    object-fit: contain;
-    flex-shrink: 0;
-  }
+/* ✅ Menu list — no inset; dividers go edge to edge */
+.navScroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100%;
+  min-height: 0;
+}
 
-  .sidebarCompanyName {
-    color: #4db3b3;
-    font-weight: 600;
-    font-size: 1rem;
-    line-height: 1.2;
-  }
+.navList {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0;
+}
 
-  .sidebarSubtitle {
-    color: #6c757d;
-    font-size: 0.75rem;
-    font-weight: 400;
-    line-height: 1.2;
-  }
+/*
+ * Outer button: ZERO horizontal padding so border-bottom is truly edge-to-edge.
+ * Inner span holds the icon/label padding.
+ */
+.iconButton,
+.iconButton2 {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 !important;
+  background-color: transparent;
+  border: 0;
+  border-bottom: 1px solid #e8eaed;
+  border-radius: 0;
+  box-shadow: none;
+  color: #334155;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  box-sizing: border-box;
+}
 
-  /* ✅ Show branding only on mobile (below 800px) */
-  @media (max-width: 799px) {
-    .sidebarBranding {
-      display: block;
-      border-bottom: 1px solid #e9ecef;
-      padding-bottom: 1rem;
-    }
-  }
-  
-  
-  .iconButton {
-    background-color: white;
-    border: none;
-    box-shadow: none;
-    color: #333;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    transition: background-color 0.2s ease;
-    width: 150px;
-  }
+.iconButtonInner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.875rem;
+  width: 100%;
+  box-sizing: border-box;
+}
 
-  .active {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5rem;
-    color: #4db3b3;
-    width: 150px;
-  }
-  .navText{
-    white-space: nowrap;
-    
-  }
+.iconButton svg,
+.iconButton2 svg,
+.iconButton :global(svg),
+.iconButton2 :global(svg) {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
 
-  .Text{
-    width: 90px;
-  }
+.navText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  .iconButton2{
-    background-color: white;
-    border: none;
-    box-shadow: none;
-    color: #333;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    transition: background-color 0.2s ease;
-    width: 150px;
-  }
+.Text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: auto;
+  max-width: 100%;
+}
 
-  .iconButton:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5rem;
-    color: #4db3b3;
-    width: 150px;
-  }
+.iconButton:hover,
+.iconButton2:hover,
+.iconButton:focus,
+.iconButton2:focus {
+  background-color: #ebecef;
+  color: #0f172a;
+  outline: none;
+  box-shadow: none;
+}
 
-  .active2 {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5rem;
-    color: #4db3b3;
-    width: 180px;
-  }
+.iconButton:hover svg,
+.iconButton2:hover svg,
+.iconButton:hover :global(svg),
+.iconButton2:hover :global(svg) {
+  color: #0f172a;
+}
 
-  .iconButton2:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5rem;
-    color: #4db3b3;
-    width: 180px;
-  }
+.iconButton:disabled,
+.iconButton2:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
+.active,
+.active2 {
+  background-color: #e8eef0;
+  color: #0d7377;
+  border-radius: 0;
+  width: 100%;
+}
 
-  @media (min-width: 800px) {
+.active svg,
+.active2 svg,
+.active :global(svg),
+.active2 :global(svg) {
+  color: #0d7377;
+}
+
+/* ✅ Footer: user + logout (Connectwell bottom block) */
+.sidebarFooter {
+  flex-shrink: 0;
+  border-top: 1px solid #e5e7eb;
+  padding: 10px 12px 12px;
+  margin: 0;
+  background: #ffffff;
+  width: 100%;
+}
+
+.userBlock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.userAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.userMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.userName {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userRole {
+  font-size: 0.625rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logoutButton {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100% !important;
+  background: #fff !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  color: #334155 !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  padding: 0.4rem 0.5rem !important;
+  margin: 0 !important;
+}
+
+.logoutButton:hover,
+.logoutButton:focus {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+  box-shadow: none !important;
+}
+
+.logoutButton :global(svg) {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.loadingWrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 40vh;
+}
+
+@media (min-width: 800px) {
   .sidebarWrapper {
     display: block !important;
   }
@@ -135,9 +287,11 @@
     top: 0;
     left: 0;
     height: 100vh;
-    width: 250px;
-    background-color: white;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+    width: 240px;
+    max-width: 240px;
+    flex-basis: 240px;
+    background-color: #ffffff;
+    box-shadow: 2px 0 8px rgba(15, 23, 42, 0.12);
     transition: transform 0.3s ease-in-out;
     transform: translateX(-100%);
     z-index: 999;
@@ -146,5 +300,11 @@
   .sidebarWrapper.open {
     transform: translateX(0);
     display: block;
+  }
+
+  .sidebar {
+    height: 100vh;
+    max-height: 100vh;
+    max-width: 240px;
   }
 }

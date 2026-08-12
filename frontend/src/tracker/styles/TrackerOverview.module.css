@@ -1,9 +1,10 @@
 .page {
   background-color: var(--gsn-bg-app, #eef6f8);
-  height: calc(100vh - 4.5rem);
+  /* ✅ Topbar is 2.5rem — old 4.5rem left a bottom gap */
+  height: calc(100vh - 2.5rem);
   overflow-y: auto;
   border-top-left-radius: 1.625rem;
-  width: calc(100vw - 14rem);
+  width: 100%;
   max-width: 100%;
 }
 
@@ -14,7 +15,7 @@
 
 @media (max-width: 767.98px) {
   .page {
-    width: 100vw;
+    width: 100%;
     border-top-left-radius: 0;
   }
 }

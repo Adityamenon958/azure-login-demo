@@ -234,7 +234,7 @@ export default function TrackerDeviceDetail() {
   const journeySoftLoading = journey.loading && Boolean(journey.data);
 
   return (
-    <Col xs={12} md={9} lg={10} xl={10} className={`${styles.page} p-3`}>
+    <Col xs={12} className={`${styles.page} p-3`}>
       <VehicleDetailHeader
         device={detail.data?.device}
         state={state}
