@@ -13,6 +13,7 @@ import {
   Legend,
 } from 'recharts';
 import styles from './AnalyticsCharts.module.css';
+import { formatHoursAndMins } from '../../utils/analyticsFormatters';
 
 /** Fleet trends palette — soft, readable stacked bars + distinct engine line */
 const CHART_COLORS = {
@@ -28,6 +29,9 @@ const GRID = { stroke: '#e2e8f0', strokeDasharray: '4 4' };
 
 function periodLabel(key) {
   if (!key) return '';
+  // ✅ Hourly Today series: "2026-08-13T08" → 08:00
+  const hourMatch = String(key).match(/T(\d{2})$/);
+  if (hourMatch) return `${hourMatch[1]}:00`;
   if (key.length === 10) {
     try {
       return new Date(`${key}T00:00:00+05:30`).toLocaleDateString('en-IN', {
@@ -42,8 +46,13 @@ function periodLabel(key) {
 }
 
 /** Secondary analysis band — Hours primary, Distance via tab. */
-export default function AnalyticsCharts({ series = [], loading }) {
+export default function AnalyticsCharts({
+  series = [],
+  loading,
+  title = 'Fleet trends',
+}) {
   const [tab, setTab] = useState('hours');
+  const isHourly = (series || []).some((s) => s.granularity === 'hour');
 
   const hoursData = useMemo(
     () =>
@@ -69,7 +78,7 @@ export default function AnalyticsCharts({ series = [], loading }) {
   return (
     <div className={`${styles.wrap} mb-3`}>
       <div className={styles.headerRow}>
-        <h6 className={styles.title}>Fleet trends</h6>
+        <h6 className={styles.title}>{title}{isHourly ? ' · today' : ''}</h6>
         <div className={styles.tabs} role="tablist" aria-label="Trend chart">
           <button
             type="button"
@@ -97,11 +106,21 @@ export default function AnalyticsCharts({ series = [], loading }) {
       ) : tab === 'hours' ? (
         <div className={styles.chartBoxPrimary}>
           <ResponsiveContainer>
-            <ComposedChart data={hoursData} barCategoryGap="18%">
+            <ComposedChart data={hoursData} barCategoryGap={isHourly ? '12%' : '18%'}>
               <CartesianGrid {...GRID} vertical={false} />
-              <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} />
+              <XAxis
+                dataKey="label"
+                tick={AXIS}
+                axisLine={false}
+                tickLine={false}
+                interval={isHourly ? 0 : 'preserveStartEnd'}
+                angle={isHourly ? -40 : 0}
+                textAnchor={isHourly ? 'end' : 'middle'}
+                height={isHourly ? 42 : 24}
+              />
               <YAxis tick={AXIS} axisLine={false} tickLine={false} width={32} />
               <Tooltip
+                formatter={(value) => formatHoursAndMins(value)}
                 contentStyle={{
                   fontSize: 12,
                   borderRadius: 8,
@@ -131,7 +150,7 @@ export default function AnalyticsCharts({ series = [], loading }) {
                 stroke={CHART_COLORS.engineOn}
                 strokeWidth={2.5}
                 name="Engine ON"
-                dot={{ r: 3, fill: CHART_COLORS.engineOn, strokeWidth: 0 }}
+                dot={isHourly ? false : { r: 3, fill: CHART_COLORS.engineOn, strokeWidth: 0 }}
                 activeDot={{ r: 5 }}
               />
             </ComposedChart>
@@ -142,7 +161,16 @@ export default function AnalyticsCharts({ series = [], loading }) {
           <ResponsiveContainer>
             <LineChart data={hoursData}>
               <CartesianGrid {...GRID} vertical={false} />
-              <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} />
+              <XAxis
+                dataKey="label"
+                tick={AXIS}
+                axisLine={false}
+                tickLine={false}
+                interval={isHourly ? 0 : 'preserveStartEnd'}
+                angle={isHourly ? -40 : 0}
+                textAnchor={isHourly ? 'end' : 'middle'}
+                height={isHourly ? 42 : 24}
+              />
               <YAxis tick={AXIS} axisLine={false} tickLine={false} width={32} />
               <Tooltip
                 contentStyle={{
@@ -158,7 +186,7 @@ export default function AnalyticsCharts({ series = [], loading }) {
                 stroke={CHART_COLORS.distance}
                 strokeWidth={2.5}
                 name="km"
-                dot={{ r: 3, fill: CHART_COLORS.distance, strokeWidth: 0 }}
+                dot={isHourly ? false : { r: 3, fill: CHART_COLORS.distance, strokeWidth: 0 }}
                 activeDot={{ r: 5 }}
               />
             </LineChart>

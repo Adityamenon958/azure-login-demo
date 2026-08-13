@@ -88,6 +88,18 @@ function previousIstDayKey(now = new Date()) {
   return istDayKey(new Date(startToday.getTime() - 1));
 }
 
+/** Start of the IST clock hour containing `date` */
+function istHourStart(date) {
+  const p = toIstParts(date);
+  return new Date(Date.UTC(p.y, p.m - 1, p.day, p.hour, 0, 0) - IST_OFFSET_MS);
+}
+
+/** "YYYY-MM-DDTHH" in IST */
+function istHourKey(date) {
+  const p = toIstParts(date);
+  return `${p.y}-${pad2(p.m)}-${pad2(p.day)}T${pad2(p.hour)}`;
+}
+
 /**
  * Pick rollup granularity for a query range.
  * ≤31 days → day; ≤24 months → month; else → year
@@ -116,6 +128,8 @@ module.exports = {
   istMonthStart,
   istYearStart,
   previousIstDayKey,
+  istHourStart,
+  istHourKey,
   resolveGranularity,
   isSameIstDay,
   pad2,

@@ -44,7 +44,7 @@ export default function FleetAnalytics() {
     search,
     setSearch,
     refresh,
-  } = useFleetAnalytics('7d', dataSourceParams);
+  } = useFleetAnalytics('today', dataSourceParams);
 
   const now = useTimestampTick();
 

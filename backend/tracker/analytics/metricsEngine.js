@@ -9,11 +9,13 @@ const {
 } = require('../services/trackerJourneyService');
 const { calculateDistanceMeters } = require('../utils/geo');
 const { MOVING_SPEED_KMH } = require('../constants/trackerStatus');
+const { istHourStart, istHourKey } = require('./dateHelpers');
 
 const ENGINE_VERSION = 1;
 const GPS_GAP_MS = 15 * 60 * 1000;
 const TRIP_MIN_MS = 2 * 60 * 1000;
 const TRIP_MIN_M = 200;
+const HOUR_MS = 3600000;
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -198,6 +200,64 @@ function computeDailyMetrics(avlDocs) {
 }
 
 /**
+ * Split consecutive AVL segments into IST hour buckets (Today trends).
+ * Gaps ≥ 15 min are skipped so offline holes are not counted as parked.
+ */
+function computeHourlyMetrics(avlDocs, { from, to } = {}) {
+  const raw = buildRawPoints(avlDocs || []);
+  const fromMs = from ? new Date(from).getTime() : (raw[0] ? raw[0].ts : 0);
+  const toMs = to ? new Date(to).getTime() : Date.now();
+  const buckets = new Map();
+
+  function getBucket(ts) {
+    const start = istHourStart(ts);
+    const key = istHourKey(start);
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        periodKey: key,
+        periodStart: start,
+        engineOnMs: 0,
+        movingMs: 0,
+        idleMs: 0,
+        parkedMs: 0,
+        distanceKm: 0,
+        granularity: 'hour',
+      });
+    }
+    return buckets.get(key);
+  }
+
+  for (let i = 1; i < raw.length; i += 1) {
+    const prev = raw[i - 1];
+    const curr = raw[i];
+    const dt = curr.ts - prev.ts;
+    if (dt <= 0 || dt >= GPS_GAP_MS) continue;
+
+    const distKm = calculateDistanceMeters(prev.lat, prev.lon, curr.lat, curr.lon) / 1000;
+    let a = Math.max(prev.ts, fromMs);
+    const b = Math.min(curr.ts, toMs);
+    if (b <= a) continue;
+
+    while (a < b) {
+      const hourEnd = istHourStart(a).getTime() + HOUR_MS;
+      const sliceEnd = Math.min(b, hourEnd);
+      const sliceMs = sliceEnd - a;
+      const bucket = getBucket(a);
+      if (prev.moving) bucket.movingMs += sliceMs;
+      else if (prev.ignition) bucket.idleMs += sliceMs;
+      else bucket.parkedMs += sliceMs;
+      if (prev.ignition) bucket.engineOnMs += sliceMs;
+      bucket.distanceKm += distKm * (sliceMs / dt);
+      a = sliceEnd;
+    }
+  }
+
+  return [...buckets.values()]
+    .sort((a, b) => a.periodStart - b.periodStart)
+    .map((b) => ({ ...b, distanceKm: round2(b.distanceKm) }));
+}
+
+/**
  * Aggregate an array of day (or month) metric docs into a higher rollup.
  */
 function aggregatePeriodMetrics(docs) {
@@ -295,6 +355,7 @@ module.exports = {
   ENGINE_VERSION,
   MOVING_SPEED_KMH,
   computeDailyMetrics,
+  computeHourlyMetrics,
   aggregatePeriodMetrics,
   computeEngineDurations,
 };

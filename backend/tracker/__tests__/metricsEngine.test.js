@@ -3,6 +3,7 @@ const {
   computeDailyMetrics,
   aggregatePeriodMetrics,
   computeEngineDurations,
+  computeHourlyMetrics,
 } = require('../analytics/metricsEngine');
 
 function point({ t, lat = 19.04, lon = 73.02, speed = 0, ignition = false, movement = false, odo }) {
@@ -83,9 +84,43 @@ function testEngineDurationsHelper() {
   console.log('ok engineDurations');
 }
 
+function testHourlySplit() {
+  // IST 00:55 → 01:05 (10 min, crosses hour) — must be < 15 min GPS gap
+  const docs = [
+    point({
+      t: '2026-08-12T19:25:00.000Z',
+      speed: 40,
+      movement: true,
+      ignition: true,
+      lat: 19.0,
+      lon: 73.0,
+    }),
+    point({
+      t: '2026-08-12T19:35:00.000Z',
+      speed: 40,
+      movement: true,
+      ignition: true,
+      lat: 19.01,
+      lon: 73.01,
+    }),
+  ];
+  const hours = computeHourlyMetrics(docs, {
+    from: new Date('2026-08-12T18:30:00.000Z'),
+    to: new Date('2026-08-12T20:30:00.000Z'),
+  });
+  const h0 = hours.find((h) => h.periodKey.endsWith('T00'));
+  const h1 = hours.find((h) => h.periodKey.endsWith('T01'));
+  assert.ok(h0, 'hour 00 bucket');
+  assert.ok(h1, 'hour 01 bucket');
+  assert.ok(Math.abs(h0.movingMs - 5 * 60 * 1000) < 2000);
+  assert.ok(Math.abs(h1.movingMs - 5 * 60 * 1000) < 2000);
+  console.log('ok hourlySplit');
+}
+
 testEmpty();
 testEngineOn();
 testMoving();
 testAggregate();
 testEngineDurationsHelper();
+testHourlySplit();
 console.log('metricsEngine tests passed');

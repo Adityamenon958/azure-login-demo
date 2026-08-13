@@ -11,6 +11,17 @@ export function formatHoursFromMs(ms) {
   return `${Math.round(h * 10) / 10} h`;
 }
 
+/** 1.3 hours → "1 hr 18 min" (chart tooltips) */
+export function formatHoursAndMins(hours) {
+  if (hours == null || Number.isNaN(Number(hours))) return '—';
+  const totalMins = Math.max(0, Math.round(Number(hours) * 60));
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return h === 1 ? '1 hr' : `${h} hrs`;
+  return `${h} hr${h === 1 ? '' : 's'} ${m} min`;
+}
+
 export function formatPct(n) {
   if (n == null || Number.isNaN(Number(n))) return '—';
   return `${Math.round(Number(n) * 10) / 10}%`;
@@ -35,7 +46,7 @@ export function healthEmoji(status) {
   return '⚪';
 }
 
-export function defaultAnalyticsRange(preset = '7d') {
+export function defaultAnalyticsRange(preset = 'today') {
   const to = new Date();
   const from = new Date(to);
   if (preset === 'today') {

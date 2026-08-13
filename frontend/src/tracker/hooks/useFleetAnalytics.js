@@ -20,7 +20,7 @@ const TABLE_PAGE_SIZE = 25;
  * Analytics refetch on range/search/sort/refresh + silent poll (chart + header).
  * Live poll updates status/speed/lastSeen without refetching analytics.
  */
-export function useFleetAnalytics(initialPreset = '7d', dataSourceParams = {}) {
+export function useFleetAnalytics(initialPreset = 'today', dataSourceParams = {}) {
   const [range, setRange] = useState(() => defaultAnalyticsRange(initialPreset));
   const [summary, setSummary] = useState(null);
   const [vehicleItems, setVehicleItems] = useState([]);

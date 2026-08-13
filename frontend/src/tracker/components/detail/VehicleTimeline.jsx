@@ -56,8 +56,6 @@ export default function VehicleTimeline({
   deviceModel,
 }) {
   const [filter, setFilter] = useState('all');
-  // ✅ Same as maps: inner list scroll only after a click, so page scroll isn't hijacked
-  const [scrollUnlocked, setScrollUnlocked] = useState(false);
   const selectedRef = useRef(null);
   const caps = getDeviceCapabilities(deviceModel);
 
@@ -109,11 +107,7 @@ export default function VehicleTimeline({
           </button>
         ))}
       </div>
-      <div
-        className={`${styles.body} ${scrollUnlocked ? '' : styles.scrollLocked}`}
-        onClick={() => setScrollUnlocked(true)}
-        onMouseLeave={() => setScrollUnlocked(false)}
-      >
+      <div className={styles.body}>
         {filteredItems.length === 0 && !loading ? (
           <div className={styles.empty}>No timeline events in this range</div>
         ) : (

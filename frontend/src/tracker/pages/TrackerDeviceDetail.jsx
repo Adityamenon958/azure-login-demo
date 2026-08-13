@@ -14,6 +14,7 @@ import {
 } from '../constants/rangePresets';
 import { getDeviceCapabilities } from '../constants/deviceCapabilities';
 import { formatRelativeTime } from '../utils/formatters';
+import { fetchAnalyticsVehicleDetail } from '../services/trackerApi';
 import VehicleDetailHeader from '../components/detail/VehicleDetailHeader';
 import VehicleRangeBar from '../components/detail/VehicleRangeBar';
 import VehicleLiveStrip from '../components/detail/VehicleLiveStrip';
@@ -27,6 +28,7 @@ import styles from '../styles/TrackerOverview.module.css';
 const TrackerSpeedChart = lazy(() => import('../components/charts/TrackerSpeedChart'));
 const TrackerActivityChart = lazy(() => import('../components/charts/TrackerActivityChart'));
 const TrackerBatteryChart = lazy(() => import('../components/charts/TrackerBatteryChart'));
+const AnalyticsCharts = lazy(() => import('../components/analytics/AnalyticsCharts'));
 
 function parseRangeFromSearch(searchParams) {
   const preset = searchParams.get('preset') || DEFAULT_PRESET;
@@ -54,6 +56,8 @@ export default function TrackerDeviceDetail() {
   const [customFromLocal, setCustomFromLocal] = useState(toDatetimeLocalValue(initial.from));
   const [customToLocal, setCustomToLocal] = useState(toDatetimeLocalValue(initial.to));
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [trendSeries, setTrendSeries] = useState([]);
+  const [trendLoading, setTrendLoading] = useState(true);
   const [selectedTimelineId, setSelectedTimelineId] = useState(null);
   const [selectedStopId, setSelectedStopId] = useState(null);
   const [selectedPathIndex, setSelectedPathIndex] = useState(null);
@@ -76,6 +80,27 @@ export default function TrackerDeviceDetail() {
   );
 
   const caps = getDeviceCapabilities(detail.data?.device?.deviceModel);
+
+  const loadTrends = useCallback(async () => {
+    if (!decodedId || !applied.from || !applied.to) return;
+    setTrendLoading(true);
+    try {
+      const res = await fetchAnalyticsVehicleDetail(decodedId, {
+        from: applied.from,
+        to: applied.to,
+      });
+      const data = res?.data ?? res;
+      setTrendSeries(data?.series || []);
+    } catch {
+      setTrendSeries([]);
+    } finally {
+      setTrendLoading(false);
+    }
+  }, [decodedId, applied.from, applied.to]);
+
+  useEffect(() => {
+    loadTrends();
+  }, [loadTrends]);
 
   // Sync range → URL
   useEffect(() => {
@@ -161,9 +186,10 @@ export default function TrackerDeviceDetail() {
     } else {
       detail.refresh();
       journey.refresh();
+      loadTrends();
       if (chartsOpen) stats.refresh();
     }
-  }, [preset, detail, journey, stats, chartsOpen]);
+  }, [preset, detail, journey, stats, chartsOpen, loadTrends]);
 
   const focusItem = (item) => {
     if (!item) return;
@@ -329,6 +355,20 @@ export default function TrackerDeviceDetail() {
         onSelect={focusItem}
         deviceModel={detail.data?.device?.deviceModel}
       />
+
+      <Suspense
+        fallback={
+          <div className="text-center py-3">
+            <Spinner animation="border" size="sm" />
+          </div>
+        }
+      >
+        <AnalyticsCharts
+          title="Vehicle trends"
+          series={trendSeries}
+          loading={trendLoading}
+        />
+      </Suspense>
 
       <div
         className="bg-white border rounded mb-3"

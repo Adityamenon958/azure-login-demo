@@ -42,11 +42,7 @@
   max-height: 320px;
   overflow-y: auto;
   padding: 8px 0;
-}
-
-/* ✅ Until clicked, wheel events pass through to the page instead of scrolling the list */
-.scrollLocked {
-  overflow-y: hidden;
+  overscroll-behavior: contain;
 }
 
 .empty {

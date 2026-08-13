@@ -3,7 +3,7 @@ const Device = require('../../models/Device');
 const deviceRepository = require('../repositories/deviceRepository');
 const avlRecordRepository = require('../repositories/avlRecordRepository');
 const { badRequest, notFound } = require('../utils/apiResponse');
-const { computeDailyMetrics } = require('./metricsEngine');
+const { computeDailyMetrics, computeHourlyMetrics } = require('./metricsEngine');
 const { computeDueItems, hasMaintenanceDue } = require('./maintenance');
 const cache = require('./analyticsCache');
 const {
@@ -11,6 +11,8 @@ const {
   istDayKey,
   istDayStart,
   istDayEndExclusive,
+  istHourStart,
+  istHourKey,
   isSameIstDay,
 } = require('./dateHelpers');
 const { OFFLINE_AFTER_MS } = require('../constants/trackerStatus');
@@ -140,10 +142,8 @@ async function fetchRollups({ devices, fromDate, toDate, granularity }) {
 
 /**
  * Live "today" partial for devices (IST day) — merged into day-granularity queries.
- */
-/**
- * Live "today" partial for devices (IST day) — merged into day-granularity queries.
  * ✅ Parallel batches — sequential scans made export hang on larger fleets.
+ * Also attaches `_hourly` for Today fleet-trends (in-memory, not persisted).
  */
 async function computeTodayPartials(devices, { concurrency = 8 } = {}) {
   const todayKey = istDayKey(new Date());
@@ -175,6 +175,7 @@ async function computeTodayPartials(devices, { concurrency = 8 } = {}) {
           ...m,
           activeDays: m.pointCount > 0 ? 1 : 0,
           _isTodayPartial: true,
+          _hourly: computeHourlyMetrics(docs, { from, to: end }),
         };
       })
     );
@@ -410,6 +411,54 @@ function buildSeries(rollups, granularity) {
     }));
 }
 
+function emptyHourBucket(periodStart) {
+  return {
+    periodKey: istHourKey(periodStart),
+    periodStart: new Date(periodStart),
+    engineOnMs: 0,
+    movingMs: 0,
+    idleMs: 0,
+    parkedMs: 0,
+    distanceKm: 0,
+    granularity: 'hour',
+  };
+}
+
+/** Fleet-wide IST hourly series from midnight → current hour (Today chart). */
+function buildHourlyFleetSeries(rollups, fromDate, toDate) {
+  const dayStart = istDayStart(fromDate);
+  const lastHour = istHourStart(toDate);
+  const byKey = new Map();
+
+  for (let t = dayStart.getTime(); t <= lastHour.getTime(); t += MS_HOUR) {
+    const bucket = emptyHourBucket(t);
+    byKey.set(bucket.periodKey, bucket);
+  }
+
+  for (const r of rollups || []) {
+    if (!Array.isArray(r._hourly)) continue;
+    for (const h of r._hourly) {
+      const b = byKey.get(h.periodKey);
+      if (!b) continue;
+      b.engineOnMs += h.engineOnMs || 0;
+      b.movingMs += h.movingMs || 0;
+      b.idleMs += h.idleMs || 0;
+      b.parkedMs += h.parkedMs || 0;
+      b.distanceKm += h.distanceKm || 0;
+    }
+  }
+
+  return [...byKey.values()].map((b) => ({
+    ...b,
+    distanceKm: round2(b.distanceKm),
+  }));
+}
+
+function isTodayIstRange(fromDate, toDate) {
+  const now = new Date();
+  return isSameIstDay(fromDate, now) && isSameIstDay(toDate, now);
+}
+
 async function getSummary(scope, { from, to }) {
   const { fromDate, toDate } = parseRange(from, to);
   const ck = cache.cacheKey([
@@ -542,7 +591,9 @@ async function getSummary(scope, { from, to }) {
       longestOffline,
       recentlyOnline,
     },
-    series: buildSeries(rollups, granularity),
+    series: isTodayIstRange(fromDate, toDate)
+      ? buildHourlyFleetSeries(rollups, fromDate, toDate)
+      : buildSeries(rollups, granularity),
   };
 
   cache.set(ck, data, 60000);
@@ -714,15 +765,18 @@ async function getVehicleDetail(scope, deviceId, { from, to }) {
         row.maintenanceItems.find((i) => i.strategy === 'engineHours')?.remaining ??
         null,
     },
-    series: rollups.map((r) => ({
-      periodKey: r.periodKey,
-      periodStart: r.periodStart,
-      engineOnMs: r.engineOnMs,
-      movingMs: r.movingMs,
-      idleMs: r.idleMs,
-      parkedMs: r.parkedMs,
-      distanceKm: r.distanceKm,
-    })),
+    series: isTodayIstRange(fromDate, toDate)
+      ? buildHourlyFleetSeries(rollups, fromDate, toDate)
+      : rollups.map((r) => ({
+          periodKey: r.periodKey,
+          periodStart: r.periodStart,
+          engineOnMs: r.engineOnMs,
+          movingMs: r.movingMs,
+          idleMs: r.idleMs,
+          parkedMs: r.parkedMs,
+          distanceKm: r.distanceKm,
+          granularity,
+        })),
     monthly: monthly.map((r) => ({
       periodKey: r.periodKey,
       engineOnMs: r.engineOnMs,
