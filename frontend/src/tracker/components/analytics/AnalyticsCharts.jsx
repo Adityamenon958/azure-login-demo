@@ -29,7 +29,9 @@ const GRID = { stroke: '#e2e8f0', strokeDasharray: '4 4' };
 
 function periodLabel(key) {
   if (!key) return '';
-  // ✅ Hourly Today series: "2026-08-13T08" → 08:00
+  const hm = String(key).match(/T(\d{2}):(\d{2})$/);
+  if (hm) return `${hm[1]}:${hm[2]}`;
+  // ✅ Hourly: "2026-08-13T08" → 08:00
   const hourMatch = String(key).match(/T(\d{2})$/);
   if (hourMatch) return `${hourMatch[1]}:00`;
   if (key.length === 10) {
@@ -50,9 +52,12 @@ export default function AnalyticsCharts({
   series = [],
   loading,
   title = 'Fleet trends',
+  showTodaySuffix = true,
 }) {
   const [tab, setTab] = useState('hours');
-  const isHourly = (series || []).some((s) => s.granularity === 'hour');
+  const grain = (series || [])[0]?.granularity;
+  const isTimeAxis = grain === 'hour' || grain === '5m' || grain === '15m';
+  const isHourly = grain === 'hour';
 
   const hoursData = useMemo(
     () =>
@@ -78,7 +83,10 @@ export default function AnalyticsCharts({
   return (
     <div className={`${styles.wrap} mb-3`}>
       <div className={styles.headerRow}>
-        <h6 className={styles.title}>{title}{isHourly ? ' · today' : ''}</h6>
+        <h6 className={styles.title}>
+          {title}
+          {showTodaySuffix && isHourly ? ' · today' : ''}
+        </h6>
         <div className={styles.tabs} role="tablist" aria-label="Trend chart">
           <button
             type="button"
@@ -106,17 +114,17 @@ export default function AnalyticsCharts({
       ) : tab === 'hours' ? (
         <div className={styles.chartBoxPrimary}>
           <ResponsiveContainer>
-            <ComposedChart data={hoursData} barCategoryGap={isHourly ? '12%' : '18%'}>
+            <ComposedChart data={hoursData} barCategoryGap={isTimeAxis ? '10%' : '18%'}>
               <CartesianGrid {...GRID} vertical={false} />
               <XAxis
                 dataKey="label"
                 tick={AXIS}
                 axisLine={false}
                 tickLine={false}
-                interval={isHourly ? 0 : 'preserveStartEnd'}
-                angle={isHourly ? -40 : 0}
-                textAnchor={isHourly ? 'end' : 'middle'}
-                height={isHourly ? 42 : 24}
+                interval={isTimeAxis ? (hoursData.length > 16 ? 1 : 0) : 'preserveStartEnd'}
+                angle={isTimeAxis ? -40 : 0}
+                textAnchor={isTimeAxis ? 'end' : 'middle'}
+                height={isTimeAxis ? 42 : 24}
               />
               <YAxis tick={AXIS} axisLine={false} tickLine={false} width={32} />
               <Tooltip
@@ -150,7 +158,7 @@ export default function AnalyticsCharts({
                 stroke={CHART_COLORS.engineOn}
                 strokeWidth={2.5}
                 name="Engine ON"
-                dot={isHourly ? false : { r: 3, fill: CHART_COLORS.engineOn, strokeWidth: 0 }}
+                dot={isTimeAxis ? false : { r: 3, fill: CHART_COLORS.engineOn, strokeWidth: 0 }}
                 activeDot={{ r: 5 }}
               />
             </ComposedChart>
@@ -166,10 +174,10 @@ export default function AnalyticsCharts({
                 tick={AXIS}
                 axisLine={false}
                 tickLine={false}
-                interval={isHourly ? 0 : 'preserveStartEnd'}
-                angle={isHourly ? -40 : 0}
-                textAnchor={isHourly ? 'end' : 'middle'}
-                height={isHourly ? 42 : 24}
+                interval={isTimeAxis ? (hoursData.length > 16 ? 1 : 0) : 'preserveStartEnd'}
+                angle={isTimeAxis ? -40 : 0}
+                textAnchor={isTimeAxis ? 'end' : 'middle'}
+                height={isTimeAxis ? 42 : 24}
               />
               <YAxis tick={AXIS} axisLine={false} tickLine={false} width={32} />
               <Tooltip
@@ -186,7 +194,7 @@ export default function AnalyticsCharts({
                 stroke={CHART_COLORS.distance}
                 strokeWidth={2.5}
                 name="km"
-                dot={isHourly ? false : { r: 3, fill: CHART_COLORS.distance, strokeWidth: 0 }}
+                dot={isTimeAxis ? false : { r: 3, fill: CHART_COLORS.distance, strokeWidth: 0 }}
                 activeDot={{ r: 5 }}
               />
             </LineChart>

@@ -6,6 +6,7 @@ import { useTrackerJourney } from '../hooks/useTrackerJourney';
 import { useTrackerStats } from '../hooks/useTrackerStats';
 import { DEVICE_DETAIL_POLL_MS, JOURNEY_SLIDE_MS } from '../constants/pollIntervals';
 import {
+  RANGE_PRESETS,
   DEFAULT_PRESET,
   isRollingPreset,
   rangeFromPreset,
@@ -258,6 +259,10 @@ export default function TrackerDeviceDetail() {
   const state = detail.data?.state;
   const needsAttention = state?.status === 'needsAttention';
   const journeySoftLoading = journey.loading && Boolean(journey.data);
+  const vehicleName = detail.data?.device?.displayName || decodedId || 'Vehicle';
+  const rangeBit =
+    RANGE_PRESETS.find((p) => p.key === preset)?.label?.toLowerCase() || 'selected range';
+  const trendTitle = `${vehicleName} trend · ${rangeBit}`;
 
   return (
     <Col xs={12} className={`${styles.page} p-3`}>
@@ -364,7 +369,8 @@ export default function TrackerDeviceDetail() {
         }
       >
         <AnalyticsCharts
-          title="Vehicle trends"
+          title={trendTitle}
+          showTodaySuffix={false}
           series={trendSeries}
           loading={trendLoading}
         />

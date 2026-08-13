@@ -9,7 +9,7 @@ const {
 } = require('../services/trackerJourneyService');
 const { calculateDistanceMeters } = require('../utils/geo');
 const { MOVING_SPEED_KMH } = require('../constants/trackerStatus');
-const { istHourStart, istHourKey } = require('./dateHelpers');
+const { istAlignedStart, istBucketKey } = require('./dateHelpers');
 
 const ENGINE_VERSION = 1;
 const GPS_GAP_MS = 15 * 60 * 1000;
@@ -200,18 +200,22 @@ function computeDailyMetrics(avlDocs) {
 }
 
 /**
- * Split consecutive AVL segments into IST hour buckets (Today trends).
+ * Split consecutive AVL segments into IST time buckets (5m / 15m / hour).
  * Gaps ≥ 15 min are skipped so offline holes are not counted as parked.
  */
-function computeHourlyMetrics(avlDocs, { from, to } = {}) {
+function computeTimeBucketMetrics(
+  avlDocs,
+  { from, to, bucketMs = HOUR_MS, granularity = 'hour' } = {}
+) {
+  const step = Number(bucketMs) > 0 ? Number(bucketMs) : HOUR_MS;
   const raw = buildRawPoints(avlDocs || []);
   const fromMs = from ? new Date(from).getTime() : (raw[0] ? raw[0].ts : 0);
   const toMs = to ? new Date(to).getTime() : Date.now();
   const buckets = new Map();
 
   function getBucket(ts) {
-    const start = istHourStart(ts);
-    const key = istHourKey(start);
+    const start = istAlignedStart(ts, step);
+    const key = istBucketKey(start, step);
     if (!buckets.has(key)) {
       buckets.set(key, {
         periodKey: key,
@@ -221,7 +225,7 @@ function computeHourlyMetrics(avlDocs, { from, to } = {}) {
         idleMs: 0,
         parkedMs: 0,
         distanceKm: 0,
-        granularity: 'hour',
+        granularity,
       });
     }
     return buckets.get(key);
@@ -239,8 +243,8 @@ function computeHourlyMetrics(avlDocs, { from, to } = {}) {
     if (b <= a) continue;
 
     while (a < b) {
-      const hourEnd = istHourStart(a).getTime() + HOUR_MS;
-      const sliceEnd = Math.min(b, hourEnd);
+      const start = istAlignedStart(a, step);
+      const sliceEnd = Math.min(b, start.getTime() + step);
       const sliceMs = sliceEnd - a;
       const bucket = getBucket(a);
       if (prev.moving) bucket.movingMs += sliceMs;
@@ -255,6 +259,14 @@ function computeHourlyMetrics(avlDocs, { from, to } = {}) {
   return [...buckets.values()]
     .sort((a, b) => a.periodStart - b.periodStart)
     .map((b) => ({ ...b, distanceKm: round2(b.distanceKm) }));
+}
+
+function computeHourlyMetrics(avlDocs, opts = {}) {
+  return computeTimeBucketMetrics(avlDocs, {
+    ...opts,
+    bucketMs: HOUR_MS,
+    granularity: 'hour',
+  });
 }
 
 /**
@@ -356,6 +368,7 @@ module.exports = {
   MOVING_SPEED_KMH,
   computeDailyMetrics,
   computeHourlyMetrics,
+  computeTimeBucketMetrics,
   aggregatePeriodMetrics,
   computeEngineDurations,
 };

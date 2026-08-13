@@ -100,6 +100,24 @@ function istHourKey(date) {
   return `${p.y}-${pad2(p.m)}-${pad2(p.day)}T${pad2(p.hour)}`;
 }
 
+/** Floor `date` to an IST-aligned bucket (5m / 15m / 1h). */
+function istAlignedStart(date, bucketMs) {
+  const stepMin = Math.max(1, Math.round(Number(bucketMs) / 60000));
+  const p = toIstParts(date);
+  const totalMin = p.hour * 60 + p.minute;
+  const floored = Math.floor(totalMin / stepMin) * stepMin;
+  const hour = Math.floor(floored / 60);
+  const minute = floored % 60;
+  return new Date(Date.UTC(p.y, p.m - 1, p.day, hour, minute, 0) - IST_OFFSET_MS);
+}
+
+/** Hour key or "YYYY-MM-DDTHH:mm" for sub-hour buckets */
+function istBucketKey(date, bucketMs) {
+  const p = toIstParts(date);
+  if (Number(bucketMs) >= 3600000) return istHourKey(date);
+  return `${p.y}-${pad2(p.m)}-${pad2(p.day)}T${pad2(p.hour)}:${pad2(p.minute)}`;
+}
+
 /**
  * Pick rollup granularity for a query range.
  * ≤31 days → day; ≤24 months → month; else → year
@@ -130,6 +148,8 @@ module.exports = {
   previousIstDayKey,
   istHourStart,
   istHourKey,
+  istAlignedStart,
+  istBucketKey,
   resolveGranularity,
   isSameIstDay,
   pad2,
