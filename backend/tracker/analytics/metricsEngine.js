@@ -203,6 +203,45 @@ function computeDailyMetrics(avlDocs) {
  * Split consecutive AVL segments into IST time buckets (5m / 15m / hour).
  * Gaps ≥ 15 min are skipped so offline holes are not counted as parked.
  */
+function emptyTimeBucket(periodStart, step, granularity) {
+  return {
+    periodKey: istBucketKey(periodStart, step),
+    periodStart: new Date(periodStart),
+    engineOnMs: 0,
+    movingMs: 0,
+    idleMs: 0,
+    parkedMs: 0,
+    distanceKm: 0,
+    granularity,
+  };
+}
+
+/**
+ * Attribute one consecutive GPS segment into time buckets.
+ * Gaps ≥ 15 min are skipped (same rule as computeTimeBucketMetrics).
+ */
+function addSegmentToTimeBuckets(buckets, getBucket, prev, curr, { fromMs, toMs, step }) {
+  const dt = curr.ts - prev.ts;
+  if (dt <= 0 || dt >= GPS_GAP_MS) return;
+  const distKm = calculateDistanceMeters(prev.lat, prev.lon, curr.lat, curr.lon) / 1000;
+  let a = Math.max(prev.ts, fromMs);
+  const b = Math.min(curr.ts, toMs);
+  if (b <= a) return;
+
+  while (a < b) {
+    const start = istAlignedStart(a, step);
+    const sliceEnd = Math.min(b, start.getTime() + step);
+    const sliceMs = sliceEnd - a;
+    const bucket = getBucket(a);
+    if (prev.moving) bucket.movingMs += sliceMs;
+    else if (prev.ignition) bucket.idleMs += sliceMs;
+    else bucket.parkedMs += sliceMs;
+    if (prev.ignition) bucket.engineOnMs += sliceMs;
+    bucket.distanceKm += distKm * (sliceMs / dt);
+    a = sliceEnd;
+  }
+}
+
 function computeTimeBucketMetrics(
   avlDocs,
   { from, to, bucketMs = HOUR_MS, granularity = 'hour' } = {}
@@ -217,43 +256,17 @@ function computeTimeBucketMetrics(
     const start = istAlignedStart(ts, step);
     const key = istBucketKey(start, step);
     if (!buckets.has(key)) {
-      buckets.set(key, {
-        periodKey: key,
-        periodStart: start,
-        engineOnMs: 0,
-        movingMs: 0,
-        idleMs: 0,
-        parkedMs: 0,
-        distanceKm: 0,
-        granularity,
-      });
+      buckets.set(key, emptyTimeBucket(start, step, granularity));
     }
     return buckets.get(key);
   }
 
   for (let i = 1; i < raw.length; i += 1) {
-    const prev = raw[i - 1];
-    const curr = raw[i];
-    const dt = curr.ts - prev.ts;
-    if (dt <= 0 || dt >= GPS_GAP_MS) continue;
-
-    const distKm = calculateDistanceMeters(prev.lat, prev.lon, curr.lat, curr.lon) / 1000;
-    let a = Math.max(prev.ts, fromMs);
-    const b = Math.min(curr.ts, toMs);
-    if (b <= a) continue;
-
-    while (a < b) {
-      const start = istAlignedStart(a, step);
-      const sliceEnd = Math.min(b, start.getTime() + step);
-      const sliceMs = sliceEnd - a;
-      const bucket = getBucket(a);
-      if (prev.moving) bucket.movingMs += sliceMs;
-      else if (prev.ignition) bucket.idleMs += sliceMs;
-      else bucket.parkedMs += sliceMs;
-      if (prev.ignition) bucket.engineOnMs += sliceMs;
-      bucket.distanceKm += distKm * (sliceMs / dt);
-      a = sliceEnd;
-    }
+    addSegmentToTimeBuckets(buckets, getBucket, raw[i - 1], raw[i], {
+      fromMs,
+      toMs,
+      step,
+    });
   }
 
   return [...buckets.values()]
@@ -366,9 +379,14 @@ function aggregatePeriodMetrics(docs) {
 module.exports = {
   ENGINE_VERSION,
   MOVING_SPEED_KMH,
+  GPS_GAP_MS,
+  HOUR_MS,
   computeDailyMetrics,
   computeHourlyMetrics,
   computeTimeBucketMetrics,
   aggregatePeriodMetrics,
   computeEngineDurations,
+  addSegmentToTimeBuckets,
+  emptyTimeBucket,
+  round2,
 };

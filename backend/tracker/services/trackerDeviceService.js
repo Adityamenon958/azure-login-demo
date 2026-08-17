@@ -1,5 +1,6 @@
 const deviceRepository = require('../repositories/deviceRepository');
 const avlRecordRepository = require('../repositories/avlRecordRepository');
+const { avlStubFromDeviceLive } = require('./trackerIngestService');
 const {
   toDeviceListItemDto,
   toDeviceDetailDto,
@@ -41,16 +42,21 @@ async function listDevices({
     );
   }
 
-  const latestDocs = await avlRecordRepository.findLatestByDeviceIds(
-    devices.map((d) => d._id)
-  );
+  const missing = devices.filter((d) => !d.lastLiveAt);
+  const latestDocs = missing.length
+    ? await avlRecordRepository.findLatestByDeviceIds(missing.map((d) => d._id))
+    : [];
   const latestByDeviceId = new Map(
     latestDocs.map((doc) => [String(doc.device), doc])
   );
 
   const now = new Date();
   let items = devices.map((device) =>
-    toDeviceListItemDto(device, latestByDeviceId.get(String(device._id)) || null, now)
+    toDeviceListItemDto(
+      device,
+      avlStubFromDeviceLive(device) || latestByDeviceId.get(String(device._id)) || null,
+      now
+    )
   );
 
   if (status && String(status).trim() && String(status) !== 'all') {
@@ -108,7 +114,9 @@ async function getDeviceById({
     throw notFound('Device not found');
   }
 
-  const latest = await avlRecordRepository.findLatestByDeviceId(device._id);
+  const latest =
+    avlStubFromDeviceLive(device) ||
+    (await avlRecordRepository.findLatestByDeviceId(device._id));
   return toDeviceDetailDto(device, latest, new Date());
 }
 

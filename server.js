@@ -356,6 +356,13 @@ async function postGpsTrackerSimPayload(device) {
 
   await AvlRecord.create(avlDoc);
 
+  try {
+    const { afterAvlPersisted } = require('./backend/tracker/services/trackerIngestService');
+    await afterAvlPersisted(avlDoc, realDevice);
+  } catch (ingestErr) {
+    console.error(`[sim] ⚠️ Stats ingest failed for ${deviceId}:`, ingestErr.message);
+  }
+
   const runtime = tickResult.runtime;
   await SimulatorDevice.updateOne(
     { deviceId },

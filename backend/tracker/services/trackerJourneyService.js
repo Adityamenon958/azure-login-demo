@@ -500,8 +500,13 @@ async function getJourney({
 
 module.exports = {
   getJourney,
-  // exported for unit tests
+  // exported for unit tests + incremental day stats
   buildRawPoints,
   detectStops,
   computeDistance,
+  STOP_MIN_MS,
+  STOP_CLUSTER_M,
+  TRIP_MIN_MS,
+  TRIP_MIN_M,
+  GPS_GAP_MS,
 };

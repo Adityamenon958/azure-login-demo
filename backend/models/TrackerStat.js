@@ -72,6 +72,55 @@ const trackerStatSchema = new mongoose.Schema(
     // month/year only — count of days with any points
     activeDays: { type: Number, default: null },
 
+    // ✅ Today live chart — IST hour buckets (max ~24). Not used on month/year.
+    hourlyBuckets: {
+      type: [
+        {
+          periodKey: { type: String, required: true },
+          periodStart: { type: Date, required: true },
+          engineOnMs: { type: Number, default: 0 },
+          movingMs: { type: Number, default: 0 },
+          idleMs: { type: Number, default: 0 },
+          parkedMs: { type: Number, default: 0 },
+          distanceKm: { type: Number, default: 0 },
+          granularity: { type: String, default: 'hour' },
+          _id: false,
+        },
+      ],
+      default: undefined,
+    },
+
+    // ✅ Incremental processor cursor (day docs only). processedTs = idempotency watermark.
+    cursor: {
+      type: {
+        processedTs: { type: Date, default: null },
+        ts: { type: Date, default: null },
+        lat: { type: Number, default: null },
+        lon: { type: Number, default: null },
+        speed: { type: Number, default: 0 },
+        ignition: { type: Boolean, default: false },
+        movement: { type: Boolean, default: false },
+        moving: { type: Boolean, default: false },
+        totalOdometer: { type: Number, default: null },
+        firstOdometer: { type: Number, default: null },
+        haversineM: { type: Number, default: 0 },
+        stopArrivedTs: { type: Number, default: null },
+        stopLastTs: { type: Number, default: null },
+        stopSumLat: { type: Number, default: 0 },
+        stopSumLon: { type: Number, default: 0 },
+        stopN: { type: Number, default: 0 },
+        stopIgnitionOn: { type: Number, default: 0 },
+        stopCommittedMs: { type: Number, default: 0 },
+        stopKind: { type: String, default: null },
+        tripStartTs: { type: Number, default: null },
+        tripDistM: { type: Number, default: 0 },
+        tripCounted: { type: Boolean, default: false },
+        driveStartTs: { type: Number, default: null },
+      },
+      default: undefined,
+      _id: false,
+    },
+
     // ✅ Reserved for future expansion (null until implemented)
     driver: { type: driverSchema, default: undefined },
     fuel: { type: fuelSchema, default: undefined },

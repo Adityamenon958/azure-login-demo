@@ -67,9 +67,18 @@ const deviceSchema = new mongoose.Schema({
     default: undefined,
   },
 
-  // ✅ Fleet Analytics — cumulative lifetime engine-ON (incremented by rollup job)
+  // ✅ Fleet Analytics — cumulative lifetime engine-ON (incremented by rollup / incremental day stats)
   totalEngineMs: { type: Number, default: 0 },
   engineMsUpdatedAt: { type: Date, default: null },
+  // ✅ Last GPS ping — Fleet Monitor / Fleet Map live-locations (no AVL collection scan)
+  lastLiveAt: { type: Date, default: null },
+  lastLatitude: { type: Number, default: null },
+  lastLongitude: { type: Number, default: null },
+  lastSpeed: { type: Number, default: 0 },
+  lastHeading: { type: Number, default: 0 },
+  lastIgnition: { type: Boolean, default: false },
+  lastMovement: { type: Boolean, default: false },
+  lastStatus: { type: String, default: null },
   // ✅ Per-vehicle expected workload for utilization %
   expectedDailyHours: { type: Number, default: 10, min: 0.5, max: 24 },
   // ✅ Multi-strategy maintenance schedules (engineHours | distanceKm | calendar)

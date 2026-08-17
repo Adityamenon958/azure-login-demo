@@ -35,14 +35,17 @@ export function useFleetAnalytics(initialPreset = 'today', dataSourceParams = {}
   const [search, setSearch] = useState('');
 
   const gridPageRef = useRef(1);
+  const hasLoadedRef = useRef(false);
 
   const loadAnalytics = useCallback(
     async ({ append = false, silent = false } = {}) => {
       const nextPage = append ? gridPageRef.current + 1 : 1;
       try {
         if (append) setLoadingMore(true);
-        else if (!silent) {
+        else if (!silent && !hasLoadedRef.current) {
           setLoading(true);
+          setError(null);
+        } else if (!silent) {
           setError(null);
         }
 
@@ -76,6 +79,7 @@ export function useFleetAnalytics(initialPreset = 'today', dataSourceParams = {}
         const items = vData?.items || [];
 
         gridPageRef.current = nextPage;
+        hasLoadedRef.current = true;
         setVehicleTotal(vData?.total ?? items.length);
         setVehicleItems((prev) => (append ? [...prev, ...items] : items));
         if (!append && !silent) setTablePage(1);

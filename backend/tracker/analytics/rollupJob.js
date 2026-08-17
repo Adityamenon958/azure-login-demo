@@ -4,18 +4,16 @@
 const Device = require('../../models/Device');
 const TrackerStat = require('../../models/TrackerStat');
 const avlRecordRepository = require('../repositories/avlRecordRepository');
-const { computeDailyMetrics, aggregatePeriodMetrics, ENGINE_VERSION } = require('./metricsEngine');
+const { replayAndUpsertDay } = require('./dayStatStore');
+const { updateDeviceLastLive } = require('../services/trackerIngestService');
+const { aggregatePeriodMetrics, ENGINE_VERSION } = require('./metricsEngine');
 const {
   istDayKey,
-  istMonthKey,
-  istYearKey,
   istDayStart,
-  istDayEndExclusive,
   istMonthStart,
   istYearStart,
   previousIstDayKey,
   pad2,
-  toIstParts,
 } = require('./dateHelpers');
 
 const CONCURRENCY = 5;
@@ -62,55 +60,12 @@ function metricsPayload(m) {
 }
 
 /**
- * Upsert one day rollup and delta-apply engine hours to Device.
+ * Upsert one day rollup from AVL (full IST day replay) and delta-apply engine hours to Device.
+ * Uses the same incremental engine as live ingest so today → yesterday does not double-count
+ * (findOneAndUpdate $set replaces the day doc; Device.totalEngineMs uses engineOnMs delta).
  */
 async function upsertDayStat(device, dayKey) {
-  const from = istDayStart(dayKey);
-  const to = istDayEndExclusive(dayKey);
-  const docs = await avlRecordRepository.findHistoryAscForJourney({
-    deviceObjectId: device._id,
-    from,
-    to: new Date(to.getTime() - 1),
-  });
-
-  const metrics = computeDailyMetrics(docs);
-  const prev = await TrackerStat.findOne({
-    device: device._id,
-    granularity: 'day',
-    periodKey: dayKey,
-  }).lean();
-
-  const prevEngineOn = prev?.engineOnMs || 0;
-  const deltaEngine = (metrics.engineOnMs || 0) - prevEngineOn;
-
-  await TrackerStat.findOneAndUpdate(
-    { device: device._id, granularity: 'day', periodKey: dayKey },
-    {
-      $set: {
-        device: device._id,
-        deviceId: device.deviceId,
-        companyName: device.companyName,
-        granularity: 'day',
-        periodKey: dayKey,
-        periodStart: from,
-        ...metricsPayload(metrics),
-        activeDays: metrics.pointCount > 0 ? 1 : 0,
-      },
-    },
-    { upsert: true, new: true }
-  );
-
-  if (deltaEngine !== 0) {
-    await Device.updateOne(
-      { _id: device._id },
-      {
-        $inc: { totalEngineMs: deltaEngine },
-        $set: { engineMsUpdatedAt: new Date() },
-      }
-    );
-  }
-
-  return { dayKey, deltaEngine, pointCount: metrics.pointCount };
+  return replayAndUpsertDay(device, dayKey);
 }
 
 /**
@@ -215,8 +170,7 @@ async function runNightlyRollup(now = new Date()) {
 }
 
 /**
- * Catch-up: find oldest AVL timestamp and fill missing day keys up to yesterday.
- * Limited to `maxDays` to avoid huge startup blocks.
+ * Catch-up: fill missing completed days, seed today's incremental stats, copy last ping onto Device.
  */
 async function runCatchUp({ maxDays = 14 } = {}) {
   const AvlRecord = require('../../models/AvlRecord');
@@ -224,36 +178,86 @@ async function runCatchUp({ maxDays = 14 } = {}) {
     .sort({ timestamp: 1 })
     .select('timestamp')
     .lean();
-  if (!oldest?.timestamp) {
-    console.log('[tracker-rollup] catch-up: no AVL records');
-    return { filled: 0 };
-  }
 
-  const yesterdayKey = previousIstDayKey(new Date());
-  let cursor = istDayStart(oldest.timestamp);
-  const end = istDayStart(yesterdayKey);
-  const keys = [];
-
-  while (cursor.getTime() <= end.getTime() && keys.length < maxDays) {
-    keys.push(istDayKey(cursor));
-    cursor = new Date(cursor.getTime() + 86400000);
-  }
-
-  // Prefer most recent missing days
-  const recentKeys = keys.slice(-maxDays);
   let filled = 0;
-  for (const key of recentKeys) {
-    const exists = await TrackerStat.exists({
-      granularity: 'day',
-      periodKey: key,
-    });
-    if (exists) continue;
-    await rollupIstDay(key);
-    filled += 1;
+  let checked = 0;
+  if (oldest?.timestamp) {
+    const yesterdayKey = previousIstDayKey(new Date());
+    let cursor = istDayStart(oldest.timestamp);
+    const end = istDayStart(yesterdayKey);
+    const keys = [];
+
+    while (cursor.getTime() <= end.getTime() && keys.length < maxDays) {
+      keys.push(istDayKey(cursor));
+      cursor = new Date(cursor.getTime() + 86400000);
+    }
+
+    const recentKeys = keys.slice(-maxDays);
+    checked = recentKeys.length;
+    for (const key of recentKeys) {
+      const exists = await TrackerStat.exists({
+        granularity: 'day',
+        periodKey: key,
+      });
+      if (exists) continue;
+      await rollupIstDay(key);
+      filled += 1;
+    }
+  } else {
+    console.log('[tracker-rollup] catch-up: no AVL records');
   }
 
-  console.log(`[tracker-rollup] catch-up filled=${filled}`);
-  return { filled, checked: recentKeys.length };
+  const todaySeed = await seedTodayIncrementalStats();
+  const liveBackfill = await backfillDeviceLastLive();
+
+  console.log(
+    `[tracker-rollup] catch-up filled=${filled} todaySeeded=${todaySeed.seeded} lastLive=${liveBackfill.updated}`
+  );
+  return { filled, checked, todaySeeded: todaySeed.seeded, lastLiveUpdated: liveBackfill.updated };
+}
+
+/**
+ * One-time / startup: replay today's AVL into TrackerStat so Fleet Monitor is not empty after deploy.
+ */
+async function seedTodayIncrementalStats() {
+  const todayKey = istDayKey(new Date());
+  const devices = await Device.find({ deviceType: 'gpsTracker' })
+    .select('_id deviceId companyName')
+    .lean();
+  let seeded = 0;
+  await mapPool(devices, CONCURRENCY, async (device) => {
+    const existing = await TrackerStat.findOne({
+      device: device._id,
+      granularity: 'day',
+      periodKey: todayKey,
+    })
+      .select('cursor')
+      .lean();
+    if (existing?.cursor?.processedTs) return;
+    await replayAndUpsertDay(device, todayKey);
+    seeded += 1;
+  });
+  return { seeded, devices: devices.length, dayKey: todayKey };
+}
+
+/**
+ * Copy latest AVL onto Device.lastLive* for vehicles that have never been ingested through the new path.
+ */
+async function backfillDeviceLastLive() {
+  const devices = await Device.find({
+    deviceType: 'gpsTracker',
+    $or: [{ lastLiveAt: null }, { lastLiveAt: { $exists: false } }],
+  })
+    .select('_id')
+    .lean();
+  if (!devices.length) return { updated: 0 };
+  const latest = await avlRecordRepository.findLatestByDeviceIds(devices.map((d) => d._id));
+  let updated = 0;
+  for (const doc of latest) {
+    await updateDeviceLastLive(doc.device, doc);
+    updated += 1;
+  }
+  return { updated, missing: devices.length };
 }
 
 /**
@@ -281,4 +285,6 @@ module.exports = {
   runNightlyRollup,
   runCatchUp,
   backfillRange,
+  seedTodayIncrementalStats,
+  backfillDeviceLastLive,
 };

@@ -1,7 +1,24 @@
 const deviceRepository = require('../repositories/deviceRepository');
 const avlRecordRepository = require('../repositories/avlRecordRepository');
 const { toLiveLocationDto } = require('../mappers/trackerDtoMapper');
+const { avlStubFromDeviceLive } = require('./trackerIngestService');
 const { validationError } = require('../utils/apiResponse');
+
+function liveAvlForDevice(device, latestByMissingId) {
+  const fromDevice = avlStubFromDeviceLive(device);
+  if (fromDevice) return fromDevice;
+  if (!latestByMissingId) return null;
+  return latestByMissingId.get(String(device._id)) || null;
+}
+
+async function latestFallbackMap(devices) {
+  const missing = (devices || []).filter((d) => !d.lastLiveAt);
+  if (!missing.length) return null;
+  const latestDocs = await avlRecordRepository.findLatestByDeviceIds(
+    missing.map((d) => d._id)
+  );
+  return new Map(latestDocs.map((doc) => [String(doc.device), doc]));
+}
 
 async function getLiveLocations({
   role,
@@ -18,16 +35,10 @@ async function getLiveLocations({
     includeDemo,
   });
 
-  const latestDocs = await avlRecordRepository.findLatestByDeviceIds(
-    devices.map((d) => d._id)
-  );
-  const latestByDeviceId = new Map(
-    latestDocs.map((doc) => [String(doc.device), doc])
-  );
-
+  const fallback = await latestFallbackMap(devices);
   const now = new Date();
   const locations = devices.map((device) =>
-    toLiveLocationDto(device, latestByDeviceId.get(String(device._id)) || null, now)
+    toLiveLocationDto(device, liveAvlForDevice(device, fallback), now)
   );
 
   return { locations };
@@ -60,26 +71,16 @@ async function getLocationsInBounds({
     includeDemo,
   });
 
-  const latestDocs = await avlRecordRepository.findLatestInBounds({
-    deviceObjectIds: devices.map((d) => d._id),
-    north: n,
-    south: s,
-    east: e,
-    west: w,
-  });
-
-  const latestByDeviceId = new Map(
-    latestDocs.map((doc) => [String(doc.device), doc])
-  );
-
-  const deviceByOid = new Map(devices.map((d) => [String(d._id), d]));
+  const fallback = await latestFallbackMap(devices);
   const now = new Date();
-
   const locations = [];
-  for (const [oid, doc] of latestByDeviceId.entries()) {
-    const device = deviceByOid.get(oid);
-    if (device) {
-      locations.push(toLiveLocationDto(device, doc, now));
+  for (const device of devices) {
+    const avl = liveAvlForDevice(device, fallback);
+    if (!avl) continue;
+    const lat = avl.latitude;
+    const lon = avl.longitude;
+    if (lat <= n && lat >= s && lon <= e && lon >= w) {
+      locations.push(toLiveLocationDto(device, avl, now));
     }
   }
 

@@ -1,18 +1,16 @@
 const TrackerStat = require('../../models/TrackerStat');
-const Device = require('../../models/Device');
 const deviceRepository = require('../repositories/deviceRepository');
 const avlRecordRepository = require('../repositories/avlRecordRepository');
 const { badRequest, notFound } = require('../utils/apiResponse');
-const { computeDailyMetrics, computeHourlyMetrics, computeTimeBucketMetrics } = require('./metricsEngine');
-const { computeDueItems, hasMaintenanceDue } = require('./maintenance');
+const { computeTimeBucketMetrics } = require('./metricsEngine');
+const { computeDueItems } = require('./maintenance');
 const cache = require('./analyticsCache');
 const {
   resolveGranularity,
   istDayKey,
-  istDayStart,
-  istDayEndExclusive,
   istHourStart,
-  istHourKey,
+  istMonthKey,
+  istYearKey,
   istAlignedStart,
   istBucketKey,
   isSameIstDay,
@@ -120,72 +118,36 @@ async function loadDevices(scope) {
 }
 
 async function loadLatestByDevice(devices) {
-  const ids = devices.map((d) => d._id);
-  const latest = await avlRecordRepository.findLatestByDeviceIds(ids);
   const map = new Map();
-  for (const doc of latest) {
-    map.set(String(doc.device), doc);
+  for (const d of devices || []) {
+    if (d.lastLiveAt) {
+      map.set(String(d._id), {
+        timestamp: d.lastLiveAt,
+        latitude: d.lastLatitude,
+        longitude: d.lastLongitude,
+        speed: d.lastSpeed,
+      });
+    }
   }
   return map;
 }
 
 /**
  * Query rollup docs for company devices in range at chosen granularity.
+ * Day/month/year use periodKey so today's midnight IST doc is included even when `from` is later in the day.
  */
 async function fetchRollups({ devices, fromDate, toDate, granularity }) {
   const ids = devices.map((d) => d._id);
   if (ids.length === 0) return [];
-  return TrackerStat.find({
-    device: { $in: ids },
-    granularity,
-    periodStart: { $gte: fromDate, $lte: toDate },
-  }).lean();
-}
-
-/**
- * Live "today" partial for devices (IST day) — merged into day-granularity queries.
- * ✅ Parallel batches — sequential scans made export hang on larger fleets.
- * Also attaches `_hourly` for Today fleet-trends (in-memory, not persisted).
- */
-async function computeTodayPartials(devices, { concurrency = 8 } = {}) {
-  const todayKey = istDayKey(new Date());
-  const from = istDayStart(todayKey);
-  const to = istDayEndExclusive(todayKey);
-  const end = new Date(Math.min(Date.now(), to.getTime() - 1));
-  const out = [];
-  const list = devices || [];
-  const limit = Math.max(1, Math.min(20, concurrency));
-
-  for (let i = 0; i < list.length; i += limit) {
-    const chunk = list.slice(i, i + limit);
-    const partials = await Promise.all(
-      chunk.map(async (device) => {
-        const docs = await avlRecordRepository.findHistoryAscForJourney({
-          deviceObjectId: device._id,
-          from,
-          to: end,
-        });
-        if (!docs.length) return null;
-        const m = computeDailyMetrics(docs);
-        return {
-          device: device._id,
-          deviceId: device.deviceId,
-          companyName: device.companyName,
-          granularity: 'day',
-          periodKey: todayKey,
-          periodStart: from,
-          ...m,
-          activeDays: m.pointCount > 0 ? 1 : 0,
-          _isTodayPartial: true,
-          _hourly: computeHourlyMetrics(docs, { from, to: end }),
-        };
-      })
-    );
-    for (const p of partials) {
-      if (p) out.push(p);
-    }
+  const query = { device: { $in: ids }, granularity };
+  if (granularity === 'day') {
+    query.periodKey = { $gte: istDayKey(fromDate), $lte: istDayKey(toDate) };
+  } else if (granularity === 'month') {
+    query.periodKey = { $gte: istMonthKey(fromDate), $lte: istMonthKey(toDate) };
+  } else {
+    query.periodKey = { $gte: istYearKey(fromDate), $lte: istYearKey(toDate) };
   }
-  return out;
+  return TrackerStat.find(query).lean();
 }
 
 /** Time buckets for an arbitrary from/to window (vehicle trends vs range bar). */
@@ -381,25 +343,10 @@ function buildVehicleRow(device, totals, latestDoc, rangeDays, now = new Date())
   };
 }
 
-async function buildAllVehicleRows(scope, fromDate, toDate, options = {}) {
-  const { skipTodayPartial = false } = options;
+async function buildAllVehicleRows(scope, fromDate, toDate) {
   const devices = await loadDevices(scope);
   const granularity = resolveGranularity(fromDate, toDate);
-  let rollups = await fetchRollups({ devices, fromDate, toDate, granularity });
-
-  // Merge today partial when querying day granularity and range includes today
-  // ❗ Export skips this — sequential AVL scans per device can hang for minutes
-  if (
-    !skipTodayPartial &&
-    granularity === 'day' &&
-    isSameIstDay(toDate, new Date())
-  ) {
-    const partials = await computeTodayPartials(devices);
-    // Replace any existing today day docs with live partial
-    const todayKey = istDayKey(new Date());
-    rollups = rollups.filter((r) => r.periodKey !== todayKey);
-    rollups = rollups.concat(partials);
-  }
+  const rollups = await fetchRollups({ devices, fromDate, toDate, granularity });
 
   const byDevice = groupByDevice(rollups);
   const latestMap = await loadLatestByDevice(devices);
@@ -419,6 +366,36 @@ async function buildAllVehicleRows(scope, fromDate, toDate, options = {}) {
   });
 
   return { rows, devices, granularity, rollups };
+}
+
+const FLEET_ROWS_TTL_MS = 15000;
+const fleetRowsInflight = new Map();
+
+async function getSharedFleetRows(scope, fromDate, toDate) {
+  const ck = cache.cacheKey([
+    'fleetRows',
+    scope.role,
+    scope.companyName,
+    scope.companyNameFilter,
+    scope.includeReal !== false ? 'r1' : 'r0',
+    scope.includeDemo !== false ? 'd1' : 'd0',
+    istDayKey(fromDate),
+    istDayKey(toDate),
+    resolveGranularity(fromDate, toDate),
+  ]);
+  const cached = cache.get(ck);
+  if (cached) return cached;
+  if (fleetRowsInflight.has(ck)) return fleetRowsInflight.get(ck);
+  const pending = buildAllVehicleRows(scope, fromDate, toDate)
+    .then((data) => {
+      cache.set(ck, data, FLEET_ROWS_TTL_MS);
+      return data;
+    })
+    .finally(() => {
+      fleetRowsInflight.delete(ck);
+    });
+  fleetRowsInflight.set(ck, pending);
+  return pending;
 }
 
 function buildSeries(rollups, granularity) {
@@ -512,8 +489,9 @@ function buildHourlyFleetSeries(rollups, fromDate, toDate) {
   }
 
   for (const r of rollups || []) {
-    if (!Array.isArray(r._hourly)) continue;
-    for (const h of r._hourly) {
+    const hours = r.hourlyBuckets || r._hourly || [];
+    if (!Array.isArray(hours) || hours.length === 0) continue;
+    for (const h of hours) {
       const b = byKey.get(h.periodKey);
       if (!b) continue;
       b.engineOnMs += h.engineOnMs || 0;
@@ -556,13 +534,13 @@ async function getSummary(scope, { from, to }) {
     scope.companyNameFilter,
     scope.includeReal !== false ? 'r1' : 'r0',
     scope.includeDemo !== false ? 'd1' : 'd0',
-    fromDate.toISOString(),
-    toDate.toISOString(),
+    istDayKey(fromDate),
+    istDayKey(toDate),
   ]);
   const cached = cache.get(ck);
   if (cached) return cached;
 
-  const { rows, granularity, rollups } = await buildAllVehicleRows(
+  const { rows, granularity, rollups } = await getSharedFleetRows(
     scope,
     fromDate,
     toDate
@@ -684,7 +662,7 @@ async function getSummary(scope, { from, to }) {
       : buildSeries(rollups, granularity),
   };
 
-  cache.set(ck, data, 60000);
+  cache.set(ck, data, FLEET_ROWS_TTL_MS);
   return data;
 }
 
@@ -696,7 +674,7 @@ async function getVehicles(scope, query) {
   const order = query.order === 'asc' ? 1 : -1;
   const search = (query.search || '').trim().toLowerCase();
 
-  const { rows, granularity } = await buildAllVehicleRows(scope, fromDate, toDate);
+  const { rows, granularity } = await getSharedFleetRows(scope, fromDate, toDate);
   let filtered = rows;
   if (search) {
     filtered = rows.filter(
@@ -747,7 +725,7 @@ async function getRankings(scope, query) {
   const cached = cache.get(ck);
   if (cached) return cached;
 
-  const { rows, granularity } = await buildAllVehicleRows(scope, fromDate, toDate);
+  const { rows, granularity } = await getSharedFleetRows(scope, fromDate, toDate);
   const sorted = [...rows].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
   const top = sorted.slice(0, limit).map((r) => ({
     deviceId: r.deviceId,
@@ -800,22 +778,17 @@ async function getVehicleDetail(scope, deviceId, { from, to }) {
   if (!device) throw notFound('Device not found');
 
   const granularity = resolveGranularity(fromDate, toDate);
-  let rollups = await TrackerStat.find({
-    device: device._id,
+  const rollups = await fetchRollups({
+    devices: [device],
+    fromDate,
+    toDate,
     granularity,
-    periodStart: { $gte: fromDate, $lte: toDate },
-  })
-    .sort({ periodStart: 1 })
-    .lean();
-
-  if (granularity === 'day' && isSameIstDay(toDate, new Date())) {
-    const partials = await computeTodayPartials([device]);
-    const todayKey = istDayKey(new Date());
-    rollups = rollups.filter((r) => r.periodKey !== todayKey).concat(partials);
-  }
+  });
 
   const totals = sumVehicleRollups(rollups);
-  const latest = await avlRecordRepository.findLatestByDeviceId(device._id);
+  const latest = device.lastLiveAt
+    ? { timestamp: device.lastLiveAt }
+    : await avlRecordRepository.findLatestByDeviceId(device._id);
   const row = buildVehicleRow(
     device,
     totals,
@@ -834,7 +807,14 @@ async function getVehicleDetail(scope, deviceId, { from, to }) {
 
   let series;
   const chartBucket = resolveVehicleChartBucket(fromDate, toDate);
-  if (chartBucket) {
+  const todayHourly =
+    chartBucket &&
+    chartBucket.granularity === 'hour' &&
+    isTodayIstRange(fromDate, toDate) &&
+    rollups.some((r) => Array.isArray(r.hourlyBuckets) && r.hourlyBuckets.length);
+  if (todayHourly) {
+    series = buildHourlyFleetSeries(rollups, fromDate, toDate);
+  } else if (chartBucket) {
     const partials = await computeBucketedPartials(
       [device],
       fromDate,
@@ -962,11 +942,7 @@ async function getExport(scope, query) {
       ? ''
       : searchRaw;
 
-  // ✅ Same numbers as Fleet Monitor UI (include today's live partials)
-  // Today partials are parallelized so export stays responsive
-  const { rows, granularity } = await buildAllVehicleRows(scope, fromDate, toDate, {
-    skipTodayPartial: false,
-  });
+  const { rows, granularity } = await getSharedFleetRows(scope, fromDate, toDate);
 
   let items = rows;
   if (search) {

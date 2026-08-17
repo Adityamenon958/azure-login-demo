@@ -55,11 +55,14 @@ export default function FleetAnalytics() {
   };
 
   const liveKpis = useMemo(
-    () =>
-      buildLiveStatusKpis(
+    () => {
+      const fromAnalytics = summary?.kpis?.totalVehicles ?? vehicleTotal ?? 0;
+      const liveCount = Object.keys(liveById || {}).length;
+      return buildLiveStatusKpis(
         liveById,
-        summary?.kpis?.totalVehicles ?? vehicleTotal ?? 0
-      ),
+        fromAnalytics > 0 ? fromAnalytics : liveCount
+      );
+    },
     [liveById, summary?.kpis?.totalVehicles, vehicleTotal]
   );
 
