@@ -57,10 +57,19 @@ export async function fetchActivity(params = {}) {
   return unwrap(res);
 }
 
-export async function fetchJourney(deviceId, params) {
+export async function fetchJourney(deviceId, params, config = {}) {
   const res = await client.get(
     `/api/tracker/devices/${encodeURIComponent(deviceId)}/journey`,
-    { params }
+    { params, ...config }
+  );
+  return unwrap(res);
+}
+
+// ✅ Fast vehicle cards — TrackerStat, no AVL scan
+export async function fetchTripSummary(deviceId, params, config = {}) {
+  const res = await client.get(
+    `/api/tracker/devices/${encodeURIComponent(deviceId)}/trip-summary`,
+    { params, ...config }
   );
   return unwrap(res);
 }

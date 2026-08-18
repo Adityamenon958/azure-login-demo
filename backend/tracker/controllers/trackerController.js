@@ -103,6 +103,18 @@ const getJourney = asyncHandler(async (req, res) => {
     deviceId: req.params.id,
     from: req.query.from,
     to: req.query.to,
+    after: req.query.after,
+    include: req.query.include,
+  });
+  return ok(res, data);
+});
+
+const getTripSummary = asyncHandler(async (req, res) => {
+  const data = await journeyService.getTripSummary({
+    ...scopeFromReq(req),
+    deviceId: req.params.id,
+    from: req.query.from,
+    to: req.query.to,
   });
   return ok(res, data);
 });
@@ -117,4 +129,5 @@ module.exports = {
   getStatistics,
   getActivity,
   getJourney,
+  getTripSummary,
 };

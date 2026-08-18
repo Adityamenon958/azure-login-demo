@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 const AvlRecord = require('../../models/AvlRecord');
+const IO = require('../constants/ioElementIds');
+
+// ✅ Map/timeline only need ignition, movement, odometer — not the full IO blob
+const PATH_IO_IDS = [IO.IGNITION, IO.MOVEMENT, IO.TOTAL_ODOMETER];
 
 /**
  * Latest AVL document per device ObjectId (indexed sort + group).
@@ -138,16 +142,53 @@ async function findHistoryAscForStats({ deviceObjectId, from, to }) {
 
 /**
  * History points for journey / route (ascending, includes coordinates).
+ * mode 'full' = replay/ingest (all IO). mode 'path' = map/timeline (tiny IO subset).
+ * `after` is exclusive — used so 60s refresh only reads new pings.
  */
-async function findHistoryAscForJourney({ deviceObjectId, from, to }) {
+async function findHistoryAscForJourney({
+  deviceObjectId,
+  from,
+  to,
+  after = null,
+  mode = 'full',
+}) {
   const id =
     deviceObjectId instanceof mongoose.Types.ObjectId
       ? deviceObjectId
       : new mongoose.Types.ObjectId(deviceObjectId);
 
+  const afterDate = after ? new Date(after) : null;
+  const hasAfter = afterDate && !Number.isNaN(afterDate.getTime());
+  const timestamp = hasAfter
+    ? { $gt: afterDate, $lte: to }
+    : { $gte: from, $lte: to };
+
+  if (mode === 'path') {
+    return AvlRecord.aggregate([
+      { $match: { device: id, timestamp } },
+      { $sort: { timestamp: 1 } },
+      {
+        $project: {
+          timestamp: 1,
+          latitude: 1,
+          longitude: 1,
+          speed: 1,
+          angle: 1,
+          ioElements: {
+            $filter: {
+              input: { $ifNull: ['$ioElements', []] },
+              as: 'el',
+              cond: { $in: ['$$el.id', PATH_IO_IDS] },
+            },
+          },
+        },
+      },
+    ]);
+  }
+
   return AvlRecord.find({
     device: id,
-    timestamp: { $gte: from, $lte: to },
+    timestamp,
   })
     .sort({ timestamp: 1 })
     .select({

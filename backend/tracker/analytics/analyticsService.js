@@ -173,6 +173,7 @@ async function computeBucketedPartials(
           deviceObjectId: device._id,
           from,
           to: end,
+          mode: 'path',
         });
         return {
           _buckets: computeTimeBucketMetrics(docs, {

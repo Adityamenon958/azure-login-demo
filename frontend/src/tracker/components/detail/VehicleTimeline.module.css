@@ -14,6 +14,31 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  color: #334155;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.sortBtn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -36,6 +61,54 @@
   border-color: #15803d;
   background: #f0fdf4;
   color: #15803d;
+}
+
+.timeSep {
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  padding: 0 2px;
+}
+
+.timeField {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.timePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 2px 6px 2px 4px;
+}
+
+.timeSelect {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  padding: 1px 2px;
+  cursor: pointer;
+  outline: none;
+}
+
+.timeSelect:focus {
+  color: #15803d;
+}
+
+.timeColon {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0 1px;
 }
 
 .body {

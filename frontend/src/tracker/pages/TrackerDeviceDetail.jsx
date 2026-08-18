@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from
 import { Alert, Col, Row, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTrackerDevice } from '../hooks/useTrackerDevice';
-import { useTrackerJourney } from '../hooks/useTrackerJourney';
+import { useTrackerJourney, useTrackerTripSummary } from '../hooks/useTrackerJourney';
 import { useTrackerStats } from '../hooks/useTrackerStats';
 import { DEVICE_DETAIL_POLL_MS, JOURNEY_SLIDE_MS } from '../constants/pollIntervals';
 import {
@@ -70,7 +70,8 @@ export default function TrackerDeviceDetail() {
   const mapSectionRef = React.useRef(null);
 
   const detail = useTrackerDevice(decodedId, DEVICE_DETAIL_POLL_MS);
-  const journey = useTrackerJourney(decodedId, applied.from, applied.to);
+  const journey = useTrackerJourney(decodedId, applied.from, applied.to, preset);
+  const tripSummary = useTrackerTripSummary(decodedId, applied.from, applied.to, preset);
   const interval = statsIntervalForRange(applied.from, applied.to);
   const stats = useTrackerStats(
     decodedId,
@@ -82,9 +83,9 @@ export default function TrackerDeviceDetail() {
 
   const caps = getDeviceCapabilities(detail.data?.device?.deviceModel);
 
-  const loadTrends = useCallback(async () => {
+  const loadTrends = useCallback(async (silent = false) => {
     if (!decodedId || !applied.from || !applied.to) return;
-    setTrendLoading(true);
+    if (!silent) setTrendLoading(true);
     try {
       const res = await fetchAnalyticsVehicleDetail(decodedId, {
         from: applied.from,
@@ -93,15 +94,23 @@ export default function TrackerDeviceDetail() {
       const data = res?.data ?? res;
       setTrendSeries(data?.series || []);
     } catch {
-      setTrendSeries([]);
+      if (!silent) setTrendSeries([]);
     } finally {
-      setTrendLoading(false);
+      if (!silent) setTrendLoading(false);
     }
   }, [decodedId, applied.from, applied.to]);
 
+  // ❗ Do not refetch the trend chart every 60s when `to` slides — that's another AVL scan
   useEffect(() => {
-    loadTrends();
-  }, [loadTrends]);
+    loadTrends(false);
+    if (!isRollingPreset(preset)) return undefined;
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      loadTrends(true);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decodedId, preset, applied.from]);
 
   // Sync range → URL
   useEffect(() => {
@@ -174,7 +183,7 @@ export default function TrackerDeviceDetail() {
     setFitTrigger((n) => n + 1);
   }, [customFromLocal, customToLocal]);
 
-  // ✅ Refresh: rolling → slide to now; custom → same dates
+  // ✅ Refresh: rolling → slide to now (journey appends new points); custom → reload same dates
   const handleRefresh = useCallback(() => {
     if (isRollingPreset(preset)) {
       const r = rangeFromPreset(preset);
@@ -183,14 +192,16 @@ export default function TrackerDeviceDetail() {
       setCustomToLocal(toDatetimeLocalValue(r.to));
       setFitTrigger((n) => n + 1);
       detail.refresh();
-      // journey/stats refetch via applied from/to change
+      tripSummary.refresh();
+      loadTrends(true);
     } else {
       detail.refresh();
       journey.refresh();
+      tripSummary.refresh();
       loadTrends();
       if (chartsOpen) stats.refresh();
     }
-  }, [preset, detail, journey, stats, chartsOpen, loadTrends]);
+  }, [preset, detail, journey, tripSummary, stats, chartsOpen, loadTrends]);
 
   const focusItem = (item) => {
     if (!item) return;
@@ -259,6 +270,17 @@ export default function TrackerDeviceDetail() {
   const state = detail.data?.state;
   const needsAttention = state?.status === 'needsAttention';
   const journeySoftLoading = journey.loading && Boolean(journey.data);
+  const tripStat = tripSummary.data;
+  const hasTrackerStat = Boolean(tripStat?.source && tripStat.source !== 'none');
+  const tripCardsSummary = hasTrackerStat
+    ? {
+        ...tripStat,
+        tripCount: tripStat.tripCount ?? journey.data?.summary?.tripCount,
+        maxSpeedKmh: tripStat.maxSpeedKmh || journey.data?.summary?.maxSpeedKmh,
+        stopCount: tripStat.stopCount ?? journey.data?.summary?.stopCount,
+      }
+    : journey.data?.summary || tripStat;
+  const tripCardsLoading = !hasTrackerStat && !journey.data?.summary && (tripSummary.loading || journey.loading);
   const vehicleName = detail.data?.device?.displayName || decodedId || 'Vehicle';
   const rangeBit =
     RANGE_PRESETS.find((p) => p.key === preset)?.label?.toLowerCase() || 'selected range';
@@ -284,9 +306,9 @@ export default function TrackerDeviceDetail() {
         </Alert>
       )}
 
-      {(detail.error || journey.error) && (
+      {(detail.error || journey.error || tripSummary.error) && (
         <Alert variant="danger" className="py-2" style={{ fontSize: '0.8rem' }}>
-          {detail.error || journey.error}
+          {detail.error || journey.error || tripSummary.error}
           <button
             type="button"
             className="btn btn-link btn-sm p-0 ms-2"
@@ -313,8 +335,8 @@ export default function TrackerDeviceDetail() {
 
       {/* ✅ Availability / Utilization + Hours — above map (replaces side Trip statistics) */}
       <VehicleTripStats
-        summary={journey.data?.summary}
-        loading={journey.loading && !journey.data}
+        summary={tripCardsSummary}
+        loading={tripCardsLoading}
         from={applied.from}
         to={applied.to}
         preset={preset}
@@ -355,7 +377,10 @@ export default function TrackerDeviceDetail() {
 
       <VehicleTimeline
         items={journey.data?.timeline || []}
-        loading={journey.loading && !journey.data}
+        loading={
+          (journey.loading && !journey.data) ||
+          (journey.timelineLoading && !(journey.data?.timeline || []).length)
+        }
         selectedId={selectedTimelineId}
         onSelect={focusItem}
         deviceModel={detail.data?.device?.deviceModel}

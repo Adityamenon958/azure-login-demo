@@ -8,7 +8,6 @@ const {
   fetchHistory,
   fetchStatistics,
   fetchActivity,
-  fetchJourney,
   withDataSourceParams,
 } = trackerApi;
 
@@ -151,16 +150,5 @@ export function useTrackerActivity(deviceId, intervalMs, enabled = true, dataSou
   return usePolledResource(fetcher, intervalMs, {
     enabled: Boolean(enabled),
     deps: [deviceId, enabled, dataSourceParams.includeReal, dataSourceParams.includeDemo],
-  });
-}
-
-export function useTrackerJourney(deviceId, from, to) {
-  const fetcher = useCallback(
-    () => fetchJourney(deviceId, { from, to }),
-    [deviceId, from, to]
-  );
-  return usePolledResource(fetcher, null, {
-    enabled: Boolean(deviceId && from && to),
-    deps: [deviceId, from, to],
   });
 }

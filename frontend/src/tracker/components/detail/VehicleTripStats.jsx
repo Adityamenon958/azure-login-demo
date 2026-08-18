@@ -40,7 +40,7 @@ export default function VehicleTripStats({ summary, loading, from, to, preset })
         ? toMs - fromMs
         : 0;
 
-    const movingMs = Number(summary?.drivingMs) || 0;
+    const movingMs = Number(summary?.drivingMs ?? summary?.movingMs) || 0;
     const idleMs = Number(summary?.idleMs) || 0;
     const parkedMs = Number(summary?.parkedMs) || 0;
     const knownMs = movingMs + idleMs + parkedMs;

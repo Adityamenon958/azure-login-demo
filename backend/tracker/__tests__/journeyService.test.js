@@ -7,6 +7,9 @@ const {
   buildRawPoints,
   detectStops,
   computeDistance,
+  parseInclude,
+  strideSampleDocs,
+  mapTotalsToTripSummary,
 } = require('../services/trackerJourneyService');
 
 function testStops() {
@@ -53,5 +56,32 @@ function testStops() {
   assert.ok(dist.distanceSource === 'haversine' || dist.distanceSource === 'odometer');
 }
 
+function testIncludeAndSample() {
+  const all = parseInclude();
+  assert.strictEqual(all.path, true);
+  assert.strictEqual(all.timeline, true);
+  const light = parseInclude('path,stops');
+  assert.strictEqual(light.path, true);
+  assert.strictEqual(light.stops, true);
+  assert.strictEqual(light.timeline, false);
+  const docs = Array.from({ length: 10 }, (_, i) => i);
+  const sampled = strideSampleDocs(docs, 4);
+  assert.ok(sampled.length <= 5);
+  assert.strictEqual(sampled[sampled.length - 1], 9);
+  const summary = mapTotalsToTripSummary({
+    movingMs: 3600000,
+    idleMs: 600000,
+    parkedMs: 1200000,
+    distanceKm: 40,
+    tripCount: 3,
+    maxSpeedKmh: 72.2,
+    distanceSource: 'haversine',
+  });
+  assert.strictEqual(summary.drivingMs, 3600000);
+  assert.strictEqual(summary.avgSpeedKmh, 40);
+  assert.strictEqual(summary.source, 'trackerstat');
+}
+
 testStops();
+testIncludeAndSample();
 console.log('✅ journey helper tests passed');

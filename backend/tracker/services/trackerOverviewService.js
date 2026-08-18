@@ -1,6 +1,8 @@
 const deviceRepository = require('../repositories/deviceRepository');
-const avlRecordRepository = require('../repositories/avlRecordRepository');
-const { avlStubFromDeviceLive } = require('./trackerIngestService');
+const {
+  avlStubFromDeviceLive,
+  hydrateStaleDeviceLive,
+} = require('./trackerIngestService');
 const {
   toOverviewDeviceDto,
 } = require('../mappers/trackerDtoMapper');
@@ -23,21 +25,11 @@ async function getOverview({
     includeDemo,
   });
 
-  const missing = devices.filter((d) => !d.lastLiveAt);
-  const latestDocs = missing.length
-    ? await avlRecordRepository.findLatestByDeviceIds(missing.map((d) => d._id))
-    : [];
-  const latestByDeviceId = new Map(
-    latestDocs.map((doc) => [String(doc.device), doc])
-  );
+  await hydrateStaleDeviceLive(devices);
 
   const now = new Date();
   const list = devices.map((device) =>
-    toOverviewDeviceDto(
-      device,
-      avlStubFromDeviceLive(device) || latestByDeviceId.get(String(device._id)) || null,
-      now
-    )
+    toOverviewDeviceDto(device, avlStubFromDeviceLive(device), now)
   );
 
   const kpis = {

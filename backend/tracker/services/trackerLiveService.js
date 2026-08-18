@@ -1,23 +1,13 @@
 const deviceRepository = require('../repositories/deviceRepository');
-const avlRecordRepository = require('../repositories/avlRecordRepository');
 const { toLiveLocationDto } = require('../mappers/trackerDtoMapper');
-const { avlStubFromDeviceLive } = require('./trackerIngestService');
+const {
+  avlStubFromDeviceLive,
+  hydrateStaleDeviceLive,
+} = require('./trackerIngestService');
 const { validationError } = require('../utils/apiResponse');
 
-function liveAvlForDevice(device, latestByMissingId) {
-  const fromDevice = avlStubFromDeviceLive(device);
-  if (fromDevice) return fromDevice;
-  if (!latestByMissingId) return null;
-  return latestByMissingId.get(String(device._id)) || null;
-}
-
-async function latestFallbackMap(devices) {
-  const missing = (devices || []).filter((d) => !d.lastLiveAt);
-  if (!missing.length) return null;
-  const latestDocs = await avlRecordRepository.findLatestByDeviceIds(
-    missing.map((d) => d._id)
-  );
-  return new Map(latestDocs.map((doc) => [String(doc.device), doc]));
+function liveAvlForDevice(device) {
+  return avlStubFromDeviceLive(device);
 }
 
 async function getLiveLocations({
@@ -35,10 +25,11 @@ async function getLiveLocations({
     includeDemo,
   });
 
-  const fallback = await latestFallbackMap(devices);
+  await hydrateStaleDeviceLive(devices);
+
   const now = new Date();
   const locations = devices.map((device) =>
-    toLiveLocationDto(device, liveAvlForDevice(device, fallback), now)
+    toLiveLocationDto(device, liveAvlForDevice(device), now)
   );
 
   return { locations };
@@ -71,11 +62,12 @@ async function getLocationsInBounds({
     includeDemo,
   });
 
-  const fallback = await latestFallbackMap(devices);
+  await hydrateStaleDeviceLive(devices);
+
   const now = new Date();
   const locations = [];
   for (const device of devices) {
-    const avl = liveAvlForDevice(device, fallback);
+    const avl = liveAvlForDevice(device);
     if (!avl) continue;
     const lat = avl.latitude;
     const lon = avl.longitude;

@@ -7,6 +7,7 @@ const Device = require('../../models/Device');
 const { deriveStatus } = require('../constants/trackerStatus');
 const { mapAvlRecord } = require('../mappers/avlMapper');
 const { isValidCoordinates } = require('../utils/geo');
+const avlRecordRepository = require('../repositories/avlRecordRepository');
 const { applyAvlToDayStat } = require('../analytics/dayStatStore');
 
 const tails = new Map();
@@ -86,6 +87,54 @@ async function updateDeviceLastLive(deviceObjectId, avlDoc) {
   );
 }
 
+/** If last-live is missing or older than this, re-read the indexed latest AVL ping. */
+const LAST_LIVE_STALE_MS = 2 * 60 * 1000;
+
+function applyLatestAvlOntoDevice(device, avlDoc) {
+  const mapped = mapAvlRecord(avlDoc);
+  if (!mapped?.timestamp || !isValidCoordinates(mapped.latitude, mapped.longitude)) {
+    return device;
+  }
+  device.lastLiveAt = mapped.timestamp;
+  device.lastLatitude = Number(mapped.latitude);
+  device.lastLongitude = Number(mapped.longitude);
+  device.lastSpeed = Number(mapped.speed) || 0;
+  device.lastHeading = mapped.heading ?? 0;
+  device.lastIgnition = mapped.ignition === true;
+  device.lastMovement = mapped.movement === true;
+  return device;
+}
+
+function isLastLiveStale(device, now = new Date()) {
+  if (!device?.lastLiveAt) return true;
+  const age = now.getTime() - new Date(device.lastLiveAt).getTime();
+  return !Number.isFinite(age) || age > LAST_LIVE_STALE_MS;
+}
+
+/**
+ * When ingest missed a ping, Device.lastLiveAt goes stale while avlrecords is newer.
+ * Only those stale devices do an indexed findOne (not a collection-wide aggregate).
+ */
+async function hydrateStaleDeviceLive(devices, now = new Date()) {
+  const list = devices || [];
+  const stale = list.filter((d) => isLastLiveStale(d, now));
+  if (!stale.length) return list;
+
+  await Promise.all(
+    stale.map(async (device) => {
+      const latest = await avlRecordRepository.findLatestByDeviceId(device._id);
+      if (!latest?.timestamp) return;
+      const latestTs = new Date(latest.timestamp);
+      if (device.lastLiveAt && latestTs <= new Date(device.lastLiveAt)) return;
+      await updateDeviceLastLive(device._id, latest).catch((err) => {
+        console.error('[tracker-ingest] stale last-live sync failed', device.deviceId, err?.message || err);
+      });
+      applyLatestAvlOntoDevice(device, latest);
+    })
+  );
+  return list;
+}
+
 /**
  * Call after AvlRecord.create / insert. Does not throw to the ingest caller —
  * AVL is already persisted. Errors are logged. Awaited so updates are not lost.
@@ -103,5 +152,7 @@ module.exports = {
   afterAvlPersisted,
   updateDeviceLastLive,
   avlStubFromDeviceLive,
+  hydrateStaleDeviceLive,
+  LAST_LIVE_STALE_MS,
   enqueue,
 };

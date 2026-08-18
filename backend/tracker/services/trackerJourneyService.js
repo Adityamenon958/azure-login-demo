@@ -1,17 +1,29 @@
 const deviceRepository = require('../repositories/deviceRepository');
 const avlRecordRepository = require('../repositories/avlRecordRepository');
+const TrackerStat = require('../../models/TrackerStat');
 const { mapAvlRecord } = require('../mappers/avlMapper');
 const { notFound } = require('../utils/apiResponse');
 const { parseRequiredRange } = require('../utils/timeRange');
 const { calculateDistanceMeters, isValidCoordinates } = require('../utils/geo');
 const { simplifyPath } = require('../utils/pathSimplify');
 const { MOVING_SPEED_KMH } = require('../constants/trackerStatus');
+const { istDayKey, istDayStart } = require('../analytics/dateHelpers');
 
 const STOP_MIN_MS = 3 * 60 * 1000; // 3 minutes
 const STOP_CLUSTER_M = 50;
 const TRIP_MIN_MS = 2 * 60 * 1000;
 const TRIP_MIN_M = 200;
 const GPS_GAP_MS = 15 * 60 * 1000;
+const MS_HOUR = 3600000;
+// ✅ Map payload cap — enough for a route, cheap to send
+const PATH_MAX_POINTS = 500;
+const PATH_TOLERANCE_M = 40;
+const PATH_SAMPLE_MAX_DOCS = 4000;
+const JOURNEY_CACHE_TTL_MS = 45000;
+const JOURNEY_CACHE_MAX = 20;
+
+/** Short-lived raw-point cache so timeline can reuse the path Mongo read. */
+const journeyRawCache = new Map();
 
 function isMovingPoint(mapped) {
   const speed = Number(mapped?.speed) || 0;
@@ -392,11 +404,158 @@ async function resolveDevice({ role, companyName, deviceId, companyNameFilter })
   return device;
 }
 
+function parseInclude(include) {
+  if (!include || include === 'all') {
+    return { path: true, stops: true, timeline: true, summary: true };
+  }
+  const set = new Set(
+    String(include)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+  return {
+    path: set.has('path'),
+    stops: set.has('stops'),
+    timeline: set.has('timeline'),
+    summary: set.has('summary'),
+  };
+}
+
+function parseAfter(after) {
+  if (!after) return null;
+  const d = new Date(after);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Evenly thin a long AVL list so 7-day maps stay cheap. */
+function strideSampleDocs(docs, max = PATH_SAMPLE_MAX_DOCS) {
+  if (!docs || docs.length <= max) return docs;
+  const step = Math.ceil(docs.length / max);
+  const out = [];
+  for (let i = 0; i < docs.length; i += step) out.push(docs[i]);
+  const last = docs[docs.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
+function boundsOf(pathPublic) {
+  if (!pathPublic || pathPublic.length === 0) return null;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  for (const p of pathPublic) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lon < minLon) minLon = p.lon;
+    if (p.lon > maxLon) maxLon = p.lon;
+  }
+  return { north: maxLat, south: minLat, east: maxLon, west: minLon };
+}
+
+function journeyCacheKey(deviceObjectId, fromDate, toDate) {
+  return `${deviceObjectId}|${fromDate.toISOString()}|${istDayKey(toDate)}`;
+}
+
+function rememberJourneyRaw(key, value) {
+  if (journeyRawCache.size >= JOURNEY_CACHE_MAX) {
+    const first = journeyRawCache.keys().next().value;
+    journeyRawCache.delete(first);
+  }
+  journeyRawCache.set(key, { ...value, at: Date.now() });
+}
+
+function getCachedJourneyRaw(key) {
+  const entry = journeyRawCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > JOURNEY_CACHE_TTL_MS) {
+    journeyRawCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function mapTotalsToTripSummary(totals, extra = {}) {
+  const drivingMs = Number(totals.movingMs || totals.drivingMs) || 0;
+  const distanceKm = Number(totals.distanceKm) || 0;
+  const drivingHours = drivingMs / MS_HOUR;
+  const avgFromTotals = Number(totals.avgSpeedKmh);
+  const avgSpeedKmh = Number.isFinite(avgFromTotals) && avgFromTotals > 0
+    ? Math.round(avgFromTotals * 100) / 100
+    : drivingHours > 0
+      ? Math.round((distanceKm / drivingHours) * 100) / 100
+      : 0;
+  return {
+    drivingMs,
+    idleMs: Number(totals.idleMs) || 0,
+    parkedMs: Number(totals.parkedMs) || 0,
+    distanceM: Math.round(distanceKm * 1000 * 100) / 100,
+    distanceKm: Math.round(distanceKm * 100) / 100,
+    distanceSource: totals.distanceSource && totals.distanceSource !== 'none'
+      ? totals.distanceSource
+      : extra.distanceSource || totals.distanceSource || null,
+    avgSpeedKmh,
+    maxSpeedKmh: Math.round((Number(totals.maxSpeedKmh) || 0) * 100) / 100,
+    tripCount: totals.tripCount == null ? null : Number(totals.tripCount) || 0,
+    stopCount: totals.stopCount == null ? null : Number(totals.stopCount) || 0,
+    pointCountRaw: Number(totals.pointCount) || 0,
+    source: extra.source || 'trackerstat',
+  };
+}
+
+function sumStatDocs(docs) {
+  const totals = {
+    movingMs: 0,
+    idleMs: 0,
+    parkedMs: 0,
+    distanceKm: 0,
+    tripCount: 0,
+    stopCount: 0,
+    pointCount: 0,
+    maxSpeedKmh: 0,
+    distanceSource: 'none',
+    avgSpeedKmh: 0,
+  };
+  const sources = new Set();
+  for (const d of docs || []) {
+    totals.movingMs += d.movingMs || 0;
+    totals.idleMs += d.idleMs || 0;
+    totals.parkedMs += d.parkedMs || 0;
+    totals.distanceKm += d.distanceKm || 0;
+    totals.tripCount += d.tripCount || 0;
+    totals.stopCount += d.stopCount || 0;
+    totals.pointCount += d.pointCount || 0;
+    totals.maxSpeedKmh = Math.max(totals.maxSpeedKmh, d.maxSpeedKmh || 0);
+    if (d.distanceSource && d.distanceSource !== 'none') sources.add(d.distanceSource);
+  }
+  if (sources.size === 1) totals.distanceSource = [...sources][0];
+  else if (sources.size > 1) totals.distanceSource = 'mixed';
+  const hours = totals.movingMs / MS_HOUR;
+  totals.avgSpeedKmh = hours > 0 ? Math.round((totals.distanceKm / hours) * 100) / 100 : 0;
+  return totals;
+}
+
+function sumHourlyBuckets(buckets, fromDate, toDate) {
+  const fromMs = fromDate.getTime();
+  const toMs = toDate.getTime();
+  const overlapping = (buckets || []).filter((h) => {
+    const start = new Date(h.periodStart).getTime();
+    if (!Number.isFinite(start)) return false;
+    const end = start + MS_HOUR;
+    return start < toMs && end > fromMs;
+  });
+  return sumStatDocs(overlapping);
+}
+
+function emptyTripSummary() {
+  return mapTotalsToTripSummary({}, { source: 'none' });
+}
+
 /**
- * Journey read-model for Vehicle Detail (path, stops, summary, timeline, events).
- * `trips` reserved (empty) for future Trip Segmentation.
+ * Fast trip cards — TrackerStat / hourly buckets, no AVL scan.
  */
-async function getJourney({
+async function getTripSummary({
   role,
   companyName,
   deviceId,
@@ -412,64 +571,118 @@ async function getJourney({
     companyNameFilter,
   });
 
-  const docs = await avlRecordRepository.findHistoryAscForJourney({
-    deviceObjectId: device._id,
-    from: fromDate,
-    to: toDate,
-  });
+  const fromKey = istDayKey(fromDate);
+  const toKey = istDayKey(toDate);
+  const dayDocs = await TrackerStat.find({
+    device: device._id,
+    granularity: 'day',
+    periodKey: { $gte: fromKey, $lte: toKey },
+  })
+    .sort({ periodStart: 1 })
+    .lean();
 
-  const raw = buildRawPoints(docs);
-  const stops = detectStops(raw);
-  const { distanceM, distanceSource } = computeDistance(raw);
-  const durations = computeDurations(raw, stops);
-
-  // Force-keep stop enter/exit points in simplification
-  const forceIndices = [];
-  for (const s of stops) {
-    forceIndices.push(s.rawIndexFrom, s.rawIndexTo);
+  if (!dayDocs.length) {
+    return {
+      deviceId: device.deviceId,
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
+      ...emptyTripSummary(),
+    };
   }
 
-  const simplified = simplifyPath(raw, 25, 1500, forceIndices);
-  const path = simplified.map((p) => ({
-    t: p.t,
-    lat: p.lat,
-    lon: p.lon,
-    speed: p.speed,
-    _srcIndex: p._srcIndex,
-  }));
+  const sameDay = fromKey === toKey;
+  const rangeMs = toDate.getTime() - fromDate.getTime();
+  const fromIsMidnight =
+    Math.abs(fromDate.getTime() - istDayStart(fromDate).getTime()) < 2 * 60 * 1000;
 
-  const { timeline: rawTimeline, events: rawEvents } = buildTimelineAndEvents(raw, stops);
-  const timeline = attachPathIndexes(rawTimeline, path, raw);
-  const events = attachPathIndexes(rawEvents, path, raw);
-  const stopsOut = mapStopsWithPath(stops, path);
+  let totals;
+  let source = 'trackerstat';
 
-  const pathPublic = path.map(({ t, lat, lon, speed }) => ({ t, lat, lon, speed }));
-
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let minLon = Infinity;
-  let maxLon = -Infinity;
-  for (const p of pathPublic) {
-    if (p.lat < minLat) minLat = p.lat;
-    if (p.lat > maxLat) maxLat = p.lat;
-    if (p.lon < minLon) minLon = p.lon;
-    if (p.lon > maxLon) maxLon = p.lon;
+  // Today (midnight → now) uses the day doc. 1h/3h uses hourly buckets.
+  if (sameDay && fromIsMidnight) {
+    totals = sumStatDocs(dayDocs);
+  } else if (sameDay && dayDocs[0]?.hourlyBuckets?.length) {
+    totals = {
+      ...sumHourlyBuckets(dayDocs[0].hourlyBuckets, fromDate, toDate),
+      maxSpeedKmh: dayDocs[0].maxSpeedKmh || 0,
+      tripCount: dayDocs[0].tripCount,
+      stopCount: dayDocs[0].stopCount,
+      distanceSource: dayDocs[0].distanceSource,
+    };
+    source = 'hourly';
+  } else if (!sameDay && rangeMs < 36 * MS_HOUR) {
+    const hourly = dayDocs.flatMap((d) => d.hourlyBuckets || []);
+    if (hourly.length) {
+      totals = {
+        ...sumHourlyBuckets(hourly, fromDate, toDate),
+        maxSpeedKmh: Math.max(...dayDocs.map((d) => d.maxSpeedKmh || 0)),
+        tripCount: dayDocs.reduce((s, d) => s + (d.tripCount || 0), 0),
+        stopCount: dayDocs.reduce((s, d) => s + (d.stopCount || 0), 0),
+      };
+      source = 'hourly';
+    } else {
+      totals = sumStatDocs(dayDocs);
+    }
+  } else {
+    totals = sumStatDocs(dayDocs);
   }
-
-  const bounds =
-    pathPublic.length > 0
-      ? { north: maxLat, south: minLat, east: maxLon, west: minLon }
-      : null;
-
-  const drivingHours = durations.drivingMs / 3600000;
-  const avgSpeed =
-    drivingHours > 0 ? Math.round((distanceM / 1000 / drivingHours) * 100) / 100 : 0;
 
   return {
     deviceId: device.deviceId,
     from: fromDate.toISOString(),
     to: toDate.toISOString(),
-    summary: {
+    ...mapTotalsToTripSummary(totals, { source }),
+  };
+}
+
+function assembleFromRaw(raw, wants, { skipSimplify = false } = {}) {
+  const stops = wants.stops || wants.timeline || wants.summary ? detectStops(raw) : [];
+  const forceIndices = [];
+  for (const s of stops) {
+    forceIndices.push(s.rawIndexFrom, s.rawIndexTo);
+  }
+
+  let path = [];
+  if (wants.path || wants.stops || wants.timeline) {
+    if (skipSimplify || raw.length <= 40) {
+      path = raw.map((p, i) => ({
+        t: p.t,
+        lat: p.lat,
+        lon: p.lon,
+        speed: p.speed,
+        _srcIndex: i,
+      }));
+    } else {
+      const simplified = simplifyPath(raw, PATH_TOLERANCE_M, PATH_MAX_POINTS, forceIndices);
+      path = simplified.map((p) => ({
+        t: p.t,
+        lat: p.lat,
+        lon: p.lon,
+        speed: p.speed,
+        _srcIndex: p._srcIndex,
+      }));
+    }
+  }
+
+  const pathPublic = path.map(({ t, lat, lon, speed }) => ({ t, lat, lon, speed }));
+  const stopsOut = wants.stops || wants.timeline ? mapStopsWithPath(stops, path) : [];
+
+  let timeline = [];
+  let events = [];
+  if (wants.timeline) {
+    const built = buildTimelineAndEvents(raw, stops);
+    timeline = attachPathIndexes(built.timeline, path, raw);
+    events = attachPathIndexes(built.events, path, raw);
+  }
+
+  let summary = null;
+  if (wants.summary) {
+    const { distanceM, distanceSource } = computeDistance(raw);
+    const durations = computeDurations(raw, stops);
+    const drivingHours = durations.drivingMs / MS_HOUR;
+    const avgSpeed =
+      drivingHours > 0 ? Math.round((distanceM / 1000 / drivingHours) * 100) / 100 : 0;
+    summary = {
       distanceM: Math.round(distanceM * 100) / 100,
       distanceKm: Math.round((distanceM / 1000) * 100) / 100,
       distanceSource,
@@ -481,18 +694,137 @@ async function getJourney({
       tripCount: durations.tripCount,
       stopCount: stopsOut.length,
       pointCountRaw: raw.length,
-    },
+      source: 'avl',
+    };
+  }
+
+  return {
     path: pathPublic,
     stops: stopsOut,
     timeline,
     events,
+    summary,
+    bounds: boundsOf(pathPublic),
+    pathInternal: path,
+    stopsInternal: stops,
+  };
+}
+
+/**
+ * Journey read-model for Vehicle Detail (path, stops, optional timeline).
+ * `trips` reserved (empty) for future Trip Segmentation.
+ */
+async function getJourney({
+  role,
+  companyName,
+  deviceId,
+  companyNameFilter,
+  from,
+  to,
+  after,
+  include,
+}) {
+  const { from: fromDate, to: toDate } = parseRequiredRange(from, to);
+  const device = await resolveDevice({
+    role,
+    companyName,
+    deviceId,
+    companyNameFilter,
+  });
+  const wants = parseInclude(include);
+  const afterDate = parseAfter(after);
+  const cacheKey = journeyCacheKey(device._id, fromDate, toDate);
+  const incremental = Boolean(afterDate);
+
+  // Incremental 60s refresh: only new pings, no timeline rebuild
+  if (incremental) {
+    const docs = await avlRecordRepository.findHistoryAscForJourney({
+      deviceObjectId: device._id,
+      from: fromDate,
+      to: toDate,
+      after: afterDate,
+      mode: 'path',
+    });
+    const raw = buildRawPoints(docs);
+    const assembled = assembleFromRaw(raw, { path: true, stops: false, timeline: false, summary: false }, {
+      skipSimplify: true,
+    });
+    return {
+      deviceId: device.deviceId,
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
+      incremental: true,
+      after: afterDate.toISOString(),
+      summary: null,
+      path: assembled.path,
+      stops: [],
+      timeline: [],
+      events: [],
+      trips: [],
+      bounds: assembled.bounds,
+      meta: {
+        simplification: 'none',
+        pointCountRaw: raw.length,
+        pointCountPath: assembled.path.length,
+        incremental: true,
+      },
+    };
+  }
+
+  // Timeline-only: reuse the path Mongo read when still warm
+  let raw = null;
+  let cachedPath = null;
+  if (wants.timeline && !wants.path) {
+    const cached = getCachedJourneyRaw(cacheKey);
+    if (cached?.raw) {
+      raw = cached.raw;
+      cachedPath = cached.pathInternal || null;
+    }
+  }
+
+  if (!raw) {
+    const docs = strideSampleDocs(
+      await avlRecordRepository.findHistoryAscForJourney({
+        deviceObjectId: device._id,
+        from: fromDate,
+        to: toDate,
+        mode: 'path',
+      })
+    );
+    raw = buildRawPoints(docs);
+  }
+
+  const assembled = assembleFromRaw(raw, { ...wants, summary: true });
+  if (wants.path || wants.stops) {
+    rememberJourneyRaw(cacheKey, { raw, pathInternal: assembled.pathInternal });
+  }
+
+  let timeline = assembled.timeline;
+  let events = assembled.events;
+  if (wants.timeline && cachedPath && cachedPath.length && !wants.path) {
+    const stops = detectStops(raw);
+    const built = buildTimelineAndEvents(raw, stops);
+    timeline = attachPathIndexes(built.timeline, cachedPath, raw);
+    events = attachPathIndexes(built.events, cachedPath, raw);
+  }
+
+  return {
+    deviceId: device.deviceId,
+    from: fromDate.toISOString(),
+    to: toDate.toISOString(),
+    incremental: false,
+    summary: assembled.summary,
+    path: wants.path ? assembled.path : [],
+    stops: wants.stops ? assembled.stops : [],
+    timeline,
+    events,
     trips: [], // ✅ reserved for future Trip Segmentation
-    bounds,
+    bounds: wants.path ? assembled.bounds : null,
     meta: {
       simplification: 'douglas-peucker',
       pointCountRaw: raw.length,
-      pointCountPath: pathPublic.length,
-      distanceSource,
+      pointCountPath: assembled.path.length,
+      distanceSource: assembled.summary?.distanceSource,
       gnssNote: gnssLabel(raw[raw.length - 1]?.gnssStatus),
     },
   };
@@ -500,10 +832,14 @@ async function getJourney({
 
 module.exports = {
   getJourney,
+  getTripSummary,
   // exported for unit tests + incremental day stats
   buildRawPoints,
   detectStops,
   computeDistance,
+  parseInclude,
+  strideSampleDocs,
+  mapTotalsToTripSummary,
   STOP_MIN_MS,
   STOP_CLUSTER_M,
   TRIP_MIN_MS,
