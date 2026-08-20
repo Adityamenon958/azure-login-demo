@@ -16,7 +16,9 @@ export default function Topbar({ toggleSidebar, zoneFilter, onZoneChange }) {
   const [userInfo, setUserInfo] = useState(null);
   const [elevatorZones, setElevatorZones] = useState([]);
   const [animateZoneHint, setAnimateZoneHint] = useState(false);
-  
+  // ✅ Live digital clock in the top headbar
+  const [now, setNow] = useState(() => new Date());
+
   // ✅ Tooltip states
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipText, setTooltipText] = useState('');
@@ -43,6 +45,23 @@ export default function Topbar({ toggleSidebar, zoneFilter, onZoneChange }) {
 
     fetchUserInfo();
   }, []);
+
+  // ✅ Tick the headbar clock every second
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ✅ e.g. "Thu, 20 Aug · 1:23:45 pm"
+  const clockLabel = now.toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 
   const showElevatorZoneFilter = location.pathname === '/dashboard/elevator-overview';
 
@@ -194,9 +213,17 @@ export default function Topbar({ toggleSidebar, zoneFilter, onZoneChange }) {
         </h4>
       </Col>
       
-      {/* ✅ Profile Picture Section */}
+      {/* ✅ Live clock + profile */}
       <Col xs="auto" className={styles.profileControlCol}>
-        <div 
+        <time
+          className={styles.liveClock}
+          dateTime={now.toISOString()}
+          title={now.toLocaleString()}
+          aria-label={`Current time ${clockLabel}`}
+        >
+          {clockLabel}
+        </time>
+        <div
           ref={profileRef}
           className={styles.profilePicture}
           onClick={() => setShowProfileModal(true)}

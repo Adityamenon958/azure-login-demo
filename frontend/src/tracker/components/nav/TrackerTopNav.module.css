@@ -68,6 +68,20 @@
   gap: 8px;
 }
 
+/* ✅ Live digital clock — stays visible in kiosk (app Topbar is hidden) */
+.liveClock {
+  margin: 0;
+  padding: 0;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1;
+  user-select: none;
+}
+
 .updated {
   font-size: 0.68rem;
   color: #94a3b8;
