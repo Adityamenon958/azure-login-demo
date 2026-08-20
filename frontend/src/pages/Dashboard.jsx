@@ -32,7 +32,7 @@ function DashboardShell({
       )}
       <Row className={`flex-grow-1 g-0 ${isKiosk ? styles.kioskRow : ''}`}>
         {!isKiosk && <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />}
-        <Col className={`p-0 ${isKiosk ? styles.kioskContent : ''}`}>
+        <Col className={`p-0 ${styles.contentCol} ${isKiosk ? styles.kioskContent : ''}`}>
           <Outlet context={{ zoneFilter, setZoneFilter }} />
         </Col>
       </Row>

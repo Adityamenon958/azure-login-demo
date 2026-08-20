@@ -4,11 +4,16 @@
   width: 220px;
   max-width: 220px;
   background-color: #ffffff;
-  overflow: hidden;
+  /* ✅ Allow selected-row bleed past the content’s top-left radius */
+  overflow: visible;
+  position: relative;
+  z-index: 1;
   /* ✅ Bootstrap .row > * adds gutter padding — wipe it */
   padding: 0 !important;
   margin: 0 !important;
   --bs-gutter-x: 0;
+  /* ✅ Same as .page / .main border-top-left-radius */
+  --sidebar-radius-bleed: 1.625rem;
 }
 
 .sidebar {
@@ -18,10 +23,10 @@
   /* ✅ Match topbar (2.5rem) — same as content page height */
   height: calc(100vh - 2.5rem);
   max-height: calc(100vh - 2.5rem);
-  z-index: 1050;
   width: 100%;
   max-width: 220px;
   border-right: none;
+  overflow: visible;
   /* ❗ Kill Bootstrap Col gutters if class ever reappears */
   padding: 0 !important;
   margin: 0 !important;
@@ -68,9 +73,14 @@
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 !important;
-  margin: 0 !important;
-  width: 100%;
+  /*
+   * Padding + negative margin lets the selected-row ::after paint into the
+   * padding box (still visible under overflow), while layout width stays 220px.
+   */
+  padding: 0 var(--sidebar-radius-bleed) 0 0 !important;
+  margin: 0 calc(var(--sidebar-radius-bleed) * -1) 0 0 !important;
+  width: calc(100% + var(--sidebar-radius-bleed));
+  box-sizing: border-box;
   min-height: 0;
 }
 
@@ -124,7 +134,19 @@
 }
 
 .navSubItem.active {
+  position: relative;
   background-color: #e8eef0;
+}
+
+.navSubItem.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: var(--sidebar-radius-bleed);
+  background-color: #e8eef0;
+  pointer-events: none;
 }
 
 /*
@@ -212,10 +234,25 @@
 
 .active,
 .active2 {
+  position: relative;
   background-color: #e8eef0;
   color: #0d7377;
   border-radius: 0;
   width: 100%;
+  z-index: 0;
+}
+
+/* ✅ Extend selected bg past the content’s curved top-left corner */
+.active::after,
+.active2::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: var(--sidebar-radius-bleed);
+  background-color: #e8eef0;
+  pointer-events: none;
 }
 
 .active svg,

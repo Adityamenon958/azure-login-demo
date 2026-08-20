@@ -26,6 +26,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'trackerOverview',
     icon: Radio,
     accent: '#2563eb',
+    highlights: [
+      'Fleet-wide KPIs for distance, idle time, and utilization',
+      'Rank vehicles by performance over any date range',
+      'Spot outliers before they become downtime',
+    ],
   },
   {
     id: 'fleet-map',
@@ -35,6 +40,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'trackerOverview',
     icon: Map,
     accent: '#0d7377',
+    highlights: [
+      'Live GPS locations with moving, idle, and parked status',
+      'Open any vehicle for trip history and route replay',
+      'Filter real vs demo trackers when you need a clean view',
+    ],
   },
   {
     id: 'attendance',
@@ -44,6 +54,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'trackerOverview',
     icon: ClipboardList,
     accent: '#7c3aed',
+    highlights: [
+      'Daily present / absent / late counts at a glance',
+      'Filter by site, role, or search a person',
+      'Trend charts to see attendance over the week',
+    ],
   },
   {
     id: 'crane-overview',
@@ -53,6 +68,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'craneOverview',
     icon: Truck,
     accent: '#c2410c',
+    highlights: [
+      'Working hours vs idle and maintenance time',
+      'Live crane locations and session status',
+      'Maintenance updates so jobs do not surprise you',
+    ],
   },
   {
     id: 'elevator-overview',
@@ -62,6 +82,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'elevatorOverview',
     icon: PiElevatorDuotone,
     accent: '#0369a1',
+    highlights: [
+      'Active, inactive, and error counts per zone',
+      'Latest status card for every elevator',
+      'History charts to compare lift behaviour over time',
+    ],
   },
   {
     id: 'energy-overview',
@@ -71,6 +96,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'energyOverview',
     icon: Zap,
     accent: '#ca8a04',
+    highlights: [
+      'Live kW, voltage, current, and power factor',
+      'Fleet consumption insights and sparklines',
+      'Meter cards grouped by site, plant, or machine',
+    ],
   },
   {
     id: 'fleet-alarms',
@@ -80,6 +110,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'fleetAlarms',
     icon: Bell,
     accent: '#dc2626',
+    highlights: [
+      'Set thresholds once and reuse them across meters',
+      'See active alarms without opening each device',
+      'Review history so repeats are easy to catch',
+    ],
   },
   {
     id: 'device-dashboard',
@@ -89,6 +124,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'dashboard',
     icon: FileText,
     accent: '#4f46e5',
+    highlights: [
+      'Gauges and charts for a single device at a time',
+      'Alarm history next to live readings',
+      'Switch devices without leaving the dashboard',
+    ],
   },
   {
     id: 'reports',
@@ -98,6 +138,11 @@ export const DASHBOARD_TILES = [
     accessKey: 'reports',
     icon: FileText,
     accent: '#334155',
+    highlights: [
+      'Export operational data for the date range you need',
+      'Reuse saved report history instead of rebuilding',
+      'Share a clean PDF or spreadsheet with your team',
+    ],
   },
 ];
 
@@ -110,6 +155,11 @@ export const ADMIN_TILES = [
     requiresSuperadmin: true,
     icon: HiOutlineOfficeBuilding,
     accent: '#475569',
+    highlights: [
+      'Create and update companies in one place',
+      'Turn dashboards on or off per company',
+      'Keep access aligned with each customer’s plan',
+    ],
   },
   {
     id: 'simulator',
@@ -120,6 +170,11 @@ export const ADMIN_TILES = [
     requiresSimulator: true,
     icon: Activity,
     accent: '#0d7377',
+    highlights: [
+      'Run GPS tracker demos without real hardware',
+      'Seed history so maps and analytics have data',
+      'Switch between real and simulated devices',
+    ],
   },
   {
     id: 'manage-users',
@@ -131,6 +186,11 @@ export const ADMIN_TILES = [
     requiresActiveSubscription: true,
     icon: UserPlus,
     accent: '#7c3aed',
+    highlights: [
+      'Invite users and assign admin or user roles',
+      'Keep each person inside their own company',
+      'Needs an active subscription to add new users',
+    ],
   },
   {
     id: 'manage-device',
@@ -142,6 +202,11 @@ export const ADMIN_TILES = [
     requiresActiveSubscription: true,
     icon: PlusSquare,
     accent: '#2563eb',
+    highlights: [
+      'Register cranes, elevators, meters, and trackers',
+      'Set UID, model, and site details once',
+      'Needs an active subscription to add new devices',
+    ],
   },
   {
     id: 'subscription',
@@ -151,6 +216,11 @@ export const ADMIN_TILES = [
     accessKey: 'subscription',
     icon: MdOutlineSubscriptions,
     accent: '#764ba2',
+    highlights: [
+      'See whether the company plan is active',
+      'Renew or upgrade through Razorpay',
+      'Unlock add-user and add-device when the plan is live',
+    ],
   },
   {
     id: 'settings',
@@ -160,6 +230,11 @@ export const ADMIN_TILES = [
     accessKey: 'settings',
     icon: Settings,
     accent: '#64748b',
+    highlights: [
+      'Update name, email, and contact details',
+      'See your role and company at a glance',
+      'Keep profile data in sync with the account',
+    ],
   },
 ];
 

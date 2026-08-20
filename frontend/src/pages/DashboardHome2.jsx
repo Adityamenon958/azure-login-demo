@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock3,
   HardDrive,
+  Lock,
   Search,
   ShieldCheck,
   Users,
@@ -20,6 +21,7 @@ import {
   isTileDisabled,
   isTileVisible,
 } from './homePortalTiles';
+import HomeFeatureCarousel from './HomeFeatureCarousel';
 
 const ACCESS_KEYS = [
   'home',
@@ -69,39 +71,59 @@ function countByType(devices) {
   return byType;
 }
 
-function PortalTile({ tile, size, disabled, metric, onOpen }) {
+// locked  = no access at all (admin disabled this feature for this company)
+// disabled = has access but subscription is inactive
+function PortalTile({ tile, size, locked, disabled, metric, highlighted, onOpen, onHoverStart, onHoverEnd }) {
   const Icon = tile.icon;
   const metricTone = metric?.tone ? styles[`metric_${metric.tone}`] : '';
+  const isInert = locked || disabled;
 
   return (
-    <button
-      type="button"
-      className={`${styles.tile} ${size === 'large' ? styles.tileLarge : styles.tileSmall} ${
-        disabled ? styles.tileDisabled : ''
-      }`}
-      style={{ '--tile-accent': tile.accent }}
-      disabled={disabled}
-      onClick={() => {
-        if (!disabled) onOpen(tile);
-      }}
+    // ✅ Wrapper so locked (disabled) buttons still receive hover for the carousel
+    <div
+      className={`${styles.tileWrap} ${highlighted ? styles.tileWrapActive : ''}`}
+      onMouseEnter={() => onHoverStart?.(tile.id)}
+      onMouseLeave={() => onHoverEnd?.()}
     >
-      <span className={styles.tileAccent} aria-hidden />
-      <span className={styles.tileTop}>
-        <span className={styles.iconWrap} aria-hidden>
-          <Icon size={size === 'large' ? 20 : 16} />
+      <button
+        type="button"
+        className={[
+          styles.tile,
+          size === 'large' ? styles.tileLarge : styles.tileSmall,
+          locked ? styles.tileLocked : '',
+          disabled && !locked ? styles.tileDisabled : '',
+          highlighted ? styles.tileHighlighted : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        style={{ '--tile-accent': tile.accent }}
+        disabled={isInert}
+        onClick={() => {
+          if (!isInert) onOpen(tile);
+        }}
+      >
+        <span className={styles.tileAccent} aria-hidden />
+        <span className={styles.tileTop}>
+          <span className={styles.iconWrap} aria-hidden>
+            <Icon size={size === 'large' ? 20 : 16} />
+          </span>
+          {locked ? (
+            <Lock size={14} className={styles.lockIcon} aria-label="Not enabled" />
+          ) : (
+            <ChevronRight size={16} className={styles.tileChevron} aria-hidden />
+          )}
         </span>
-        <ChevronRight size={16} className={styles.tileChevron} aria-hidden />
-      </span>
-      <h3 className={styles.title}>{tile.title}</h3>
-      <p className={styles.description}>{tile.description}</p>
-      {disabled && <span className={styles.hint}>Subscription required</span>}
-      {!disabled && metric && (
-        <span className={`${styles.metric} ${metricTone}`}>
-          <strong>{metric.value}</strong>
-          <span>{metric.label}</span>
-        </span>
-      )}
-    </button>
+        <h3 className={styles.title}>{tile.title}</h3>
+        <p className={styles.description}>{tile.description}</p>
+        {disabled && !locked && <span className={styles.hint}>Subscription required</span>}
+        {!isInert && metric && (
+          <span className={`${styles.metric} ${metricTone}`}>
+            <strong>{metric.value}</strong>
+            <span>{metric.label}</span>
+          </span>
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -117,6 +139,8 @@ export default function DashboardHome2() {
   const [searchTerm, setSearchTerm] = useState('');
   const [insights, setInsights] = useState(null);
   const [recentIds, setRecentIds] = useState(() => readRecentIds());
+  // ✅ Which dashboard card is hovered → drives the right-side feature tour
+  const [hoveredTileId, setHoveredTileId] = useState(null);
 
   useEffect(() => {
     const loadPortal = async () => {
@@ -249,32 +273,42 @@ export default function DashboardHome2() {
 
   const query = searchTerm.trim().toLowerCase();
 
-  const visibleDashboards = useMemo(
-    () => DASHBOARD_TILES.filter((tile) => isTileVisible(tile, accessContext)),
-    [accessContext]
-  );
-
+  // ✅ Always show all dashboard tiles — locked ones are greyed out, not hidden
   const dashboardTiles = useMemo(
-    () => visibleDashboards.filter((tile) => matchesSearch(tile, query)),
-    [visibleDashboards, query]
+    () => DASHBOARD_TILES.filter((tile) => matchesSearch(tile, query)),
+    [query]
   );
 
+  // ✅ Admin tiles: superadmin-only tools (Manage Company, Simulator) stay hidden for
+  // non-superadmins since they are internal tools, not product features.
+  // All other admin tiles are always shown.
   const adminTiles = useMemo(
     () =>
-      ADMIN_TILES.filter((tile) => isTileVisible(tile, accessContext)).filter((tile) =>
-        matchesSearch(tile, query)
-      ),
-    [accessContext, query]
+      ADMIN_TILES.filter((tile) => {
+        // Hide superadmin-only tools from non-superadmins entirely
+        if (tile.requiresSuperadmin && role !== 'superadmin') return false;
+        // Hide Simulator if not available even for superadmin
+        if (tile.requiresSimulator && !simulatorAvailable) return false;
+        return matchesSearch(tile, query);
+      }),
+    [role, simulatorAvailable, query]
   );
 
+  // ✅ Recently opened — only tiles the user actually has access to
   const recentTiles = useMemo(() => {
-    const visible = new Set(
+    const accessible = new Set(
       ALL_TILES.filter((tile) => isTileVisible(tile, accessContext)).map((tile) => tile.id)
     );
     return recentIds
       .map((id) => ALL_TILES.find((tile) => tile.id === id))
-      .filter((tile) => tile && visible.has(tile.id) && !isTileDisabled(tile, accessContext));
+      .filter((tile) => tile && accessible.has(tile.id) && !isTileDisabled(tile, accessContext));
   }, [recentIds, accessContext]);
+
+  // ✅ Count how many dashboard tiles the user can actually open
+  const accessibleCount = useMemo(
+    () => DASHBOARD_TILES.filter((tile) => isTileVisible(tile, accessContext)).length,
+    [accessContext]
+  );
 
   const hasAnyTiles = dashboardTiles.length > 0 || adminTiles.length > 0;
 
@@ -322,7 +356,7 @@ export default function DashboardHome2() {
           </p>
           <h1 className={styles.welcome}>Welcome back, {userName}</h1>
           <p className={styles.subtitle}>
-            {visibleDashboards.length} dashboard{visibleDashboards.length === 1 ? '' : 's'} ready
+            {accessibleCount} of {DASHBOARD_TILES.length} dashboard{DASHBOARD_TILES.length === 1 ? '' : 's'} enabled
             {companyName ? (
               <>
                 {' '}
@@ -400,60 +434,84 @@ export default function DashboardHome2() {
         </section>
       )}
 
-      {!hasAnyTiles ? (
-        <div className={styles.empty}>
-          <p className={styles.emptyTitle}>
-            {query ? 'No matching dashboards' : 'No dashboards available'}
-          </p>
-          <p className={styles.emptyText}>
-            {query
-              ? 'Try a different search term.'
-              : 'Ask your admin to enable dashboards for this company.'}
-          </p>
-        </div>
-      ) : (
-        <>
-          {dashboardTiles.length > 0 && (
-            <section className={styles.section} aria-labelledby="home-dashboards">
-              <h2 id="home-dashboards" className={styles.sectionTitle}>
-                Dashboards
-              </h2>
-              <div className={styles.grid}>
-                {dashboardTiles.map((tile) => (
-                  <PortalTile
-                    key={tile.id}
-                    tile={tile}
-                    size="large"
-                    disabled={isTileDisabled(tile, accessContext)}
-                    metric={getTileMetric(tile, insights)}
-                    onOpen={openTile}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+      {/* ✅ One split: left = dashboard cards + admin cards stacked; right = carousel */}
+      <div className={`${styles.bottomSplit} ${query ? styles.bottomSplitSolo : ''}`}>
+          {/* ── LEFT COLUMN ── */}
+          <div className={styles.cardsPane}>
+            {dashboardTiles.length > 0 && (
+              <section className={styles.section} aria-labelledby="home-dashboards">
+                <h2 id="home-dashboards" className={styles.sectionTitle}>
+                  Dashboards
+                </h2>
+                <div className={styles.gridSplit}>
+                  {dashboardTiles.map((tile) => {
+                    const accessible = isTileVisible(tile, accessContext);
+                    const subscriptionLocked = accessible && isTileDisabled(tile, accessContext);
+                    return (
+                      <PortalTile
+                        key={tile.id}
+                        tile={tile}
+                        size="large"
+                        locked={!accessible}
+                        disabled={subscriptionLocked}
+                        highlighted={hoveredTileId === tile.id}
+                        metric={accessible ? getTileMetric(tile, insights) : null}
+                        onOpen={openTile}
+                        onHoverStart={setHoveredTileId}
+                        onHoverEnd={() => setHoveredTileId(null)}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
-          {adminTiles.length > 0 && (
-            <section className={styles.section} aria-labelledby="home-admin">
-              <h2 id="home-admin" className={styles.sectionTitle}>
-                Admin & Tools
-              </h2>
-              <div className={styles.gridSmall}>
-                {adminTiles.map((tile) => (
-                  <PortalTile
-                    key={tile.id}
-                    tile={tile}
-                    size="small"
-                    disabled={isTileDisabled(tile, accessContext)}
-                    metric={getTileMetric(tile, insights)}
-                    onOpen={openTile}
-                  />
-                ))}
+            {adminTiles.length > 0 && (
+              <section className={styles.section} aria-labelledby="home-admin">
+                <h2 id="home-admin" className={styles.sectionTitle}>
+                  Admin & Tools
+                </h2>
+                <div className={styles.gridSmall}>
+                  {adminTiles.map((tile) => {
+                    const accessible = isTileVisible(tile, accessContext);
+                    const subscriptionLocked = accessible && isTileDisabled(tile, accessContext);
+                    return (
+                      <PortalTile
+                        key={tile.id}
+                        tile={tile}
+                        size="small"
+                        locked={!accessible}
+                        disabled={subscriptionLocked}
+                        highlighted={hoveredTileId === tile.id}
+                        metric={accessible ? getTileMetric(tile, insights) : null}
+                        onOpen={openTile}
+                        onHoverStart={setHoveredTileId}
+                        onHoverEnd={() => setHoveredTileId(null)}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* ── RIGHT COLUMN: carousel, sticky so it follows scroll ── */}
+          {!query && (
+            <div className={styles.carouselPane}>
+              <div className={styles.carouselSticky}>
+                <h2 className={styles.sectionTitle}>Feature tour</h2>
+                <HomeFeatureCarousel focusTileId={hoveredTileId} />
               </div>
-            </section>
+            </div>
           )}
-        </>
-      )}
+        </div>
+
+        {!hasAnyTiles && (
+          <div className={styles.empty}>
+            <p className={styles.emptyTitle}>No matching dashboards</p>
+            <p className={styles.emptyText}>Try a different search term.</p>
+          </div>
+        )}
     </div>
   );
 }

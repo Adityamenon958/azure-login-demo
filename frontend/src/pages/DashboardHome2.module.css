@@ -221,6 +221,70 @@
   gap: 0.85rem;
 }
 
+/* ✅ Bottom half: dashboard cards | feature carousel */
+.bottomSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  column-gap: 1.15rem;
+  align-items: start;
+  margin-bottom: 1.35rem;
+}
+
+.bottomSplitSolo {
+  grid-template-columns: 1fr;
+}
+
+/* left column — stacks dashboard + admin cards */
+.cardsPane {
+  grid-column: 1;
+  min-width: 0;
+}
+
+/* right column — fills the grid row but the inner sticky box stays visible */
+.carouselPane {
+  grid-column: 2;
+  min-width: 0;
+  /* let the column grow with the left side */
+  align-self: stretch;
+}
+
+/* the inner wrapper that actually sticks */
+.carouselSticky {
+  position: sticky;
+  top: 0.75rem;
+}
+
+.gridSplit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.tileWrap {
+  min-width: 0;
+}
+
+.tileWrapActive .tile,
+.tileHighlighted {
+  border-color: color-mix(in srgb, var(--tile-accent) 55%, #e8eef2);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+}
+
+.tileLocked.tileHighlighted {
+  border-color: color-mix(in srgb, var(--tile-accent) 55%, #e8eef2);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+}
+
+.gridSplit .tileLarge {
+  min-height: 9.75rem;
+  padding: 1rem 1rem 0.9rem;
+}
+
+.gridSplit .tile {
+  height: 100%;
+}
+
 .tile {
   --tile-accent: #764ba2;
   position: relative;
@@ -290,8 +354,18 @@
 .tileDisabled,
 .tile:disabled {
   cursor: not-allowed;
-  opacity: 0.62;
-  box-shadow: none;
+  /* ✅ Keep full colour — no washed-out look; lock / hint explains state */
+  opacity: 1;
+}
+
+/* ✅ Locked cards look the same as enabled — only the lock icon differs */
+.tileLocked {
+  cursor: default;
+}
+
+.lockIcon {
+  color: #64748b;
+  flex-shrink: 0;
 }
 
 .iconWrap {
@@ -396,6 +470,27 @@
   display: flex;
   justify-content: center;
   padding-top: 4rem;
+}
+
+@media (max-width: 1100px) {
+  .bottomSplit {
+    grid-template-columns: 1fr;
+  }
+
+  .cardsPane,
+  .carouselPane {
+    grid-column: 1;
+  }
+
+  .carouselSticky {
+    position: static;
+  }
+}
+
+@media (max-width: 700px) {
+  .gridSplit {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 576px) {

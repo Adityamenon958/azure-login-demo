@@ -13,6 +13,13 @@
   max-width: 15rem;
 }
 
+/* ✅ Sit above the sidebar selected bleed so the page radius cuts over it */
+.contentCol {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
 /* ✅ Kiosk: chrome hidden — content fills the viewport */
 .kiosk {
   min-height: 100vh;

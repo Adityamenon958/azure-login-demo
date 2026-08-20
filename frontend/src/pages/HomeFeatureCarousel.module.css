@@ -1,0 +1,360 @@
+.carousel {
+  --slide-accent: #764ba2;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 28rem;
+  padding: 1.15rem 1.2rem 1rem;
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--slide-accent) 10%, #ffffff) 0%, #ffffff 42%);
+  border: 1px solid #e8eef2;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.header {
+  margin-bottom: 0.85rem;
+}
+
+.heading {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  animation: fadeSlide 0.35s ease;
+}
+
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stageTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--slide-accent) 14%, #ffffff);
+  color: var(--slide-accent);
+  flex-shrink: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.visual {
+  position: relative;
+  height: 8.5rem;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e8eef2;
+  overflow: hidden;
+}
+
+.visualBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  padding: 1rem 1.1rem 0.85rem;
+}
+
+.visualBars span {
+  flex: 1;
+  border-radius: 0.4rem 0.4rem 0.2rem 0.2rem;
+  background: linear-gradient(180deg, var(--slide-accent), color-mix(in srgb, var(--slide-accent) 35%, #ffffff));
+  min-height: 18%;
+}
+
+.visualMap {
+  background:
+    linear-gradient(#e2e8f0 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, #e2e8f0 1px, transparent 1px) 0 0 / 24px 24px,
+    #f1f5f9;
+}
+
+.pin {
+  position: absolute;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--slide-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--slide-accent) 22%, transparent);
+}
+
+.route {
+  position: absolute;
+  top: 34%;
+  left: 34%;
+  width: 28%;
+  height: 24%;
+  border: 2px dashed color-mix(in srgb, var(--slide-accent) 55%, #94a3b8);
+  border-radius: 40% 60% 55% 45%;
+  border-left: none;
+  border-bottom: none;
+}
+
+.visualList {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1rem 1.15rem;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #334155;
+}
+
+.dotOk,
+.dotWarn,
+.dotBad {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+}
+
+.dotOk { background: #10b981; }
+.dotWarn { background: #f59e0b; }
+.dotBad { background: #ef4444; }
+
+.visualRings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+}
+
+.visualRings span {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  border: 5px solid color-mix(in srgb, var(--slide-accent) 28%, #e2e8f0);
+  border-top-color: var(--slide-accent);
+}
+
+.visualFloors {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1rem 1.4rem;
+}
+
+.visualFloors span {
+  height: 0.85rem;
+  border-radius: 0.35rem;
+  background: #e2e8f0;
+}
+
+.floorActive {
+  background: var(--slide-accent) !important;
+  width: 72%;
+}
+
+.visualSpark {
+  color: var(--slide-accent);
+  padding: 1.1rem 1rem 0.8rem;
+}
+
+.visualSpark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.visualAlarms {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.alarmChip {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--slide-accent) 12%, #ffffff);
+  color: var(--slide-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--slide-accent) 25%, #e2e8f0);
+}
+
+.visualGauges {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+
+.visualGauges span {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 5px solid #e2e8f0;
+  border-right-color: var(--slide-accent);
+  border-bottom-color: var(--slide-accent);
+}
+
+.visualGauges span:nth-child(2) {
+  width: 3.1rem;
+  height: 3.1rem;
+}
+
+.visualDocs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 1.1rem;
+}
+
+.visualDocs span {
+  width: 2.4rem;
+  border-radius: 0.35rem 0.35rem 0.15rem 0.15rem;
+  background: color-mix(in srgb, var(--slide-accent) 18%, #e2e8f0);
+}
+
+.visualDocs span:nth-child(1) { height: 55%; }
+.visualDocs span:nth-child(2) { height: 78%; background: var(--slide-accent); }
+.visualDocs span:nth-child(3) { height: 46%; }
+
+.highlights {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.highlights li {
+  position: relative;
+  padding-left: 1rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.highlights li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.45rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--slide-accent);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.navBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  border: 1px solid #dbe4ea;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+}
+
+.navBtn:hover {
+  border-color: var(--slide-accent);
+  color: var(--slide-accent);
+}
+
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  background: #cbd5e1;
+  cursor: pointer;
+}
+
+.dotActive {
+  width: 1.15rem;
+  background: var(--slide-accent);
+}
+
+.progressTrack {
+  margin-top: 0.75rem;
+  height: 3px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progressBar {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--slide-accent);
+  animation: progressFill 5.5s linear forwards;
+}
+
+.progressPaused {
+  animation-play-state: paused;
+}
+
+@keyframes progressFill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
