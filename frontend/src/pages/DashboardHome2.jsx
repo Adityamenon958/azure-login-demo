@@ -1,328 +1,459 @@
-// DashboardHome2.jsx
-import React, { useState, useEffect, useRef } from 'react';
+// DashboardHome2.jsx — Azure-style Home portal after login
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Col, Row, Card, Table, Form, Spinner } from 'react-bootstrap';
-import styles from './MainContent.module.css';
-import './MainContent.css';
+import { Spinner } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
+import {
+  Building2,
+  ChevronRight,
+  Clock3,
+  HardDrive,
+  Search,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
+import styles from './DashboardHome2.module.css';
+import {
+  ADMIN_TILES,
+  DASHBOARD_TILES,
+  getTileMetric,
+  isTileDisabled,
+  isTileVisible,
+} from './homePortalTiles';
 
-const rowsPerPage = 9;        // 🔧 tweak any time
+const ACCESS_KEYS = [
+  'home',
+  'dashboard',
+  'trackerOverview',
+  'craneOverview',
+  'elevatorOverview',
+  'energyOverview',
+  'fleetAlarms',
+  'reports',
+  'addUsers',
+  'addDevices',
+  'subscription',
+  'settings',
+];
+
+const RECENT_KEY = 'gsn.home.recentTiles';
+const ALL_TILES = [...DASHBOARD_TILES, ...ADMIN_TILES];
+
+function matchesSearch(tile, query) {
+  if (!query) return true;
+  const haystack = `${tile.title} ${tile.description}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function readRecentIds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberTile(tileId) {
+  const next = [tileId, ...readRecentIds().filter((id) => id !== tileId)].slice(0, 4);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+}
+
+function countByType(devices) {
+  const byType = { crane: 0, elevator: 0, energyMeter: 0, gpsTracker: 0, levelSensor: 0 };
+  for (const device of devices) {
+    if (Object.prototype.hasOwnProperty.call(byType, device.deviceType)) {
+      byType[device.deviceType] += 1;
+    }
+  }
+  return byType;
+}
+
+function PortalTile({ tile, size, disabled, metric, onOpen }) {
+  const Icon = tile.icon;
+  const metricTone = metric?.tone ? styles[`metric_${metric.tone}`] : '';
+
+  return (
+    <button
+      type="button"
+      className={`${styles.tile} ${size === 'large' ? styles.tileLarge : styles.tileSmall} ${
+        disabled ? styles.tileDisabled : ''
+      }`}
+      style={{ '--tile-accent': tile.accent }}
+      disabled={disabled}
+      onClick={() => {
+        if (!disabled) onOpen(tile);
+      }}
+    >
+      <span className={styles.tileAccent} aria-hidden />
+      <span className={styles.tileTop}>
+        <span className={styles.iconWrap} aria-hidden>
+          <Icon size={size === 'large' ? 20 : 16} />
+        </span>
+        <ChevronRight size={16} className={styles.tileChevron} aria-hidden />
+      </span>
+      <h3 className={styles.title}>{tile.title}</h3>
+      <p className={styles.description}>{tile.description}</p>
+      {disabled && <span className={styles.hint}>Subscription required</span>}
+      {!disabled && metric && (
+        <span className={`${styles.metric} ${metricTone}`}>
+          <strong>{metric.value}</strong>
+          <span>{metric.label}</span>
+        </span>
+      )}
+    </button>
+  );
+}
 
 export default function DashboardHome2() {
-  /* ─────────── state ─────────── */
-  const [role,   setRole]   = useState('');
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState('');
+  const [userName, setUserName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [subscriptionStatus, setSubscriptionStatus] = useState('inactive');
+  const [simulatorAvailable, setSimulatorAvailable] = useState(false);
+  const [companyAccess, setCompanyAccess] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [insights, setInsights] = useState(null);
+  const [recentIds, setRecentIds] = useState(() => readRecentIds());
 
-  const [sensorData, setSensorData] = useState([]);
-  const [totalPages, setTotalPages]   = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const [searchColumn, setSearchColumn] = useState('');
-  const [searchTerm,   setSearchTerm]   = useState('');
-  const [sortAsc, setSortAsc] = useState(false);
-
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  const [selectAll,     setSelectAll]   = useState(false);
-  const [selectedRows,  setSelectedRows]= useState([]);
-
-  /* Card metrics (unchanged piece of your code, shortened here) */
-  const [totalCompanies, setTotalCompanies] = useState(0);
-  const [totalUsers,     setTotalUsers]     = useState(0);
-  const [totalDevices,   setTotalDevices]   = useState(0);
-  const [totalUsersByCompany,   setTotalUsersByCompany]   = useState(0);
-  const [totalDevicesByCompany, setTotalDevicesByCompany] = useState(0);
-
-  /* ─────────── helpers ─────────── */
-  const fetchUserInfo = async () => {
-    const res = await axios.get('/api/auth/userinfo', { withCredentials: true });
-    setRole(res.data.role);
-    setCompanyName(res.data.companyName);
-    return res.data;
-  };
-
-  /* ---------------- SENSOR PAGE FETCH ---------------- */
-  const fetchSensorPage = async (page = 1) => {
-    setRefreshing(true);
-    const res = await axios.get('/api/levelsensor', {
-      withCredentials: true,
-      params: {
-        page,
-        limit: rowsPerPage,
-        search: searchTerm,
-        column: searchColumn,
-        sort: sortAsc ? 'asc' : 'desc'
-      }
-    });
-
-    setSensorData(res.data.data);
-    setTotalPages(Math.max(1, Math.ceil(res.data.total / rowsPerPage)));
-    setLastUpdated(new Date());
-    setRefreshing(false);
-  };
-
-  /* ---------------- METRICS (unchanged) ------------- */
-  const fetchMetrics = async (info) => {
-    const { role, companyName } = info;
-    try {
-      if (role === 'superadmin' && companyName === 'Gsn Soln') {
-        const [cRes, uRes, dRes] = await Promise.all([
-          axios.get('/api/companies/count'),
-          axios.get('/api/users/count'),
-          axios.get('/api/devices/count'),
-        ]);
-        setTotalCompanies(cRes.data.totalCompanies);
-        setTotalUsers(uRes.data.totalUsers);
-        setTotalDevices(dRes.data.totalDevices);
-      } else if (role === 'admin') {
-        const [uRes, dRes] = await Promise.all([
-          axios.get('/api/users/count/by-company',   { params: { companyName } }),
-          axios.get('/api/devices/count/by-company', { params: { companyName } }),
-        ]);
-        setTotalUsersByCompany(uRes.data.totalUsersByCompany);
-        setTotalDevicesByCompany(dRes.data.totalDevicesByCompany);
-      } else if (role === 'user') {
-        const dRes = await axios.get('/api/devices/count/by-company', { params: { companyName } });
-        setTotalDevicesByCompany(dRes.data.totalDevicesByCompany);
-      }
-    } catch (err) {
-      console.error('Metric fetch error', err);
-    }
-  };
-
-  /* ---------------- INITIAL LOAD ---------------- */
   useEffect(() => {
-    (async () => {
-      const info = await fetchUserInfo();
-      await fetchMetrics(info);
-      await fetchSensorPage(1);
-      setLoading(false);
-    })();
+    const loadPortal = async () => {
+      try {
+        const [userRes, subRes] = await Promise.all([
+          axios.get('/api/auth/userinfo', { withCredentials: true }),
+          axios.get('/api/subscription/status', { withCredentials: true }).catch(() => ({
+            data: { active: false },
+          })),
+        ]);
+
+        const nextRole = userRes.data.role || '';
+        const nextCompany = userRes.data.companyName || '';
+        setRole(nextRole);
+        setUserName(userRes.data.name || userRes.data.email || 'there');
+        setCompanyName(nextCompany);
+        setSubscriptionStatus(subRes.data.active ? 'active' : 'inactive');
+
+        if (nextRole === 'superadmin') {
+          try {
+            const simRes = await axios.get('/api/sim/availability', { withCredentials: true });
+            setSimulatorAvailable(simRes.data.enabled === true);
+          } catch {
+            setSimulatorAvailable(false);
+          }
+        } else {
+          // ✅ Same per-flag checks Sidebar uses
+          const accessChecks = await Promise.all(
+            ACCESS_KEYS.map((key) =>
+              axios.get(`/api/check-dashboard-access/${key}`, { withCredentials: true })
+            )
+          );
+          const access = {};
+          ACCESS_KEYS.forEach((key, index) => {
+            access[key] = accessChecks[index].data.hasAccess;
+          });
+          setCompanyAccess(access);
+        }
+      } catch (err) {
+        console.error('Home portal load failed:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPortal();
   }, []);
 
-  /* ---------------- PARAM-CHANGE FETCH ------------- */
+  // ✅ Fill live counts after we know who the user is — tiles already visible
   useEffect(() => {
-    /* debounce 400 ms so typing doesn’t spam */
-    const t = setTimeout(() => fetchSensorPage(1), 400);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, searchColumn, sortAsc]);
+    if (!role) return undefined;
 
-  /* ------------- PAGE CHANGE ------------- */
-  useEffect(() => { fetchSensorPage(currentPage); },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentPage]);
+    const loadInsights = async () => {
+      const next = {
+        companies: null,
+        users: null,
+        devices: null,
+        byType: {},
+        fleet: null,
+        activeAlarms: null,
+        subscriptionStatus,
+      };
 
-  /* ------------- AUTO-REFRESH every minute ---------- */
-  useEffect(() => {
-    const id = setInterval(() => fetchSensorPage(currentPage), 30000);
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
+      const deviceParams = role === 'superadmin' ? {} : { companyName };
 
-  /* ─────────── UI ─────────── */
+      try {
+        if (role === 'superadmin') {
+          const [cRes, uRes, dRes] = await Promise.all([
+            axios.get('/api/companies/count', { withCredentials: true }),
+            axios.get('/api/users/count', { withCredentials: true }),
+            axios.get('/api/devices/count', { withCredentials: true }),
+          ]);
+          next.companies = cRes.data.totalCompanies;
+          next.users = uRes.data.totalUsers;
+          next.devices = dRes.data.totalDevices;
+        } else if (role === 'admin') {
+          const [uRes, dRes] = await Promise.all([
+            axios.get('/api/users/count/by-company', {
+              params: { companyName },
+              withCredentials: true,
+            }),
+            axios.get('/api/devices/count/by-company', {
+              params: { companyName },
+              withCredentials: true,
+            }),
+          ]);
+          next.users = uRes.data.totalUsersByCompany;
+          next.devices = dRes.data.totalDevicesByCompany;
+        } else {
+          const dRes = await axios.get('/api/devices/count/by-company', {
+            params: { companyName },
+            withCredentials: true,
+          });
+          next.devices = dRes.data.totalDevicesByCompany;
+        }
+      } catch (err) {
+        console.error('Home KPI fetch failed:', err.message);
+      }
+
+      const extras = await Promise.allSettled([
+        axios.get('/api/devices', { params: deviceParams, withCredentials: true }),
+        axios.get('/api/tracker/overview', { withCredentials: true }),
+        axios.get('/api/energy-meter/alarms/events/active', { withCredentials: true }),
+      ]);
+
+      if (extras[0].status === 'fulfilled') {
+        const list = Array.isArray(extras[0].value.data) ? extras[0].value.data : [];
+        next.byType = countByType(list);
+        if (next.devices == null) next.devices = list.length;
+      }
+      if (extras[1].status === 'fulfilled') {
+        next.fleet = extras[1].value.data?.kpis || null;
+      }
+      if (extras[2].status === 'fulfilled') {
+        const events = extras[2].value.data?.data;
+        next.activeAlarms = Array.isArray(events) ? events.length : 0;
+      }
+
+      setInsights(next);
+    };
+
+    loadInsights();
+    return undefined;
+  }, [role, companyName, subscriptionStatus]);
+
+  const accessContext = useMemo(
+    () => ({ role, companyAccess, simulatorAvailable, subscriptionStatus }),
+    [role, companyAccess, simulatorAvailable, subscriptionStatus]
+  );
+
+  const query = searchTerm.trim().toLowerCase();
+
+  const visibleDashboards = useMemo(
+    () => DASHBOARD_TILES.filter((tile) => isTileVisible(tile, accessContext)),
+    [accessContext]
+  );
+
+  const dashboardTiles = useMemo(
+    () => visibleDashboards.filter((tile) => matchesSearch(tile, query)),
+    [visibleDashboards, query]
+  );
+
+  const adminTiles = useMemo(
+    () =>
+      ADMIN_TILES.filter((tile) => isTileVisible(tile, accessContext)).filter((tile) =>
+        matchesSearch(tile, query)
+      ),
+    [accessContext, query]
+  );
+
+  const recentTiles = useMemo(() => {
+    const visible = new Set(
+      ALL_TILES.filter((tile) => isTileVisible(tile, accessContext)).map((tile) => tile.id)
+    );
+    return recentIds
+      .map((id) => ALL_TILES.find((tile) => tile.id === id))
+      .filter((tile) => tile && visible.has(tile.id) && !isTileDisabled(tile, accessContext));
+  }, [recentIds, accessContext]);
+
+  const hasAnyTiles = dashboardTiles.length > 0 || adminTiles.length > 0;
+
+  const todayLabel = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  const openTile = (tile) => {
+    rememberTile(tile.id);
+    setRecentIds(readRecentIds());
+    navigate(tile.path);
+  };
+
+  const kpiItems = [
+    role === 'superadmin' && insights?.companies != null
+      ? { id: 'companies', label: 'Companies', value: insights.companies, icon: Building2 }
+      : null,
+    (role === 'superadmin' || role === 'admin') && insights?.users != null
+      ? { id: 'users', label: 'Users', value: insights.users, icon: Users }
+      : null,
+    insights?.devices != null
+      ? { id: 'devices', label: 'Devices', value: insights.devices, icon: HardDrive }
+      : null,
+  ].filter(Boolean);
+
   if (loading) {
     return (
-      <Col className={styles.main}>
-        <div className="d-flex justify-content-center mt-5">
+      <div className={styles.page}>
+        <div className={styles.loading}>
           <Spinner animation="border" />
         </div>
-      </Col>
+      </div>
     );
   }
 
   return (
-    <Col xs={12} md={9} lg={10} xl={10} className={styles.main}>
-      {/* --------- TOP METRIC CARDS (unchanged markup) ---------- */}
-      <div className="p-3 mt-2">
-        <Row className="g-4">
-          {role === 'superadmin' && (
-            <Col xs={12} sm={4} md={4}>
-              <Card className={`${styles.deviceCard} text-center`}>
-                <Card.Body>
-                  <i className={`bi bi-buildings-fill text-primary ${styles.deviceIcon}`}></i>
-                  <Card.Title className={styles.cardTitle}>Total Companies</Card.Title>
-                  <div className={styles.metricNumber}>{totalCompanies}</div>
-                </Card.Body>
-              </Card>
-            </Col>
-          )}
-          {(role === 'superadmin' || role === 'admin') && (
-            <Col xs={12} sm={4} md={4}>
-              <Card className={`${styles.deviceCard} text-center`}>
-                <Card.Body>
-                  <i className={`bi bi-people-fill text-secondary ${styles.deviceIcon}`}></i>
-                  <Card.Title className={styles.cardTitle}>Total Users</Card.Title>
-                  <div className={styles.metricNumber}>
-                    {role === 'superadmin' ? totalUsers : totalUsersByCompany}
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          )}
-          {(role === 'superadmin' || role === 'admin' || role === 'user') && (
-            <Col xs={12} sm={4} md={4}>
-              <Card className={`${styles.deviceCard} text-center`}>
-                <Card.Body>
-                  <i className={`bi bi-hdd-stack-fill text-success ${styles.deviceIcon}`}></i>
-                  <Card.Title className={styles.cardTitle}>Total Devices</Card.Title>
-                  <div className={styles.metricNumber}>
-                    {role === 'superadmin' ? totalDevices : totalDevicesByCompany}
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          )}
-        </Row>
-      </div>
-
-      {/* -------- SENSOR TABLE -------- */}
-      <div className="mt-3 ms-3" style={{ position: 'relative', minHeight: 200 }}>
-        <div className="d-flex align-items-center justify-content-between">
-          <h5 className="mb-0">Sensor Data Logs</h5>
-          {lastUpdated && (
-            <small className="text-muted d-flex align-items-center">
-              Last updated:&nbsp;<strong>{lastUpdated.toLocaleTimeString()}</strong>
-              {refreshing && (
-                <Spinner animation="border" variant="secondary" size="sm" className="ms-2" />
-              )}
-            </small>
-          )}
-        </div>
-
-        <div className="tableScroll mt-3">
-          {/* -------- SEARCH BAR -------- */}
-          <Row className="mb-3">
-            <Col md={4}>
-              <Form.Select
-                value={searchColumn}
-                onChange={(e) => setSearchColumn(e.target.value)}
-                className="custom_input1"
-              >
-                <option value="">All Columns</option>
-                <option value="D">Date</option>
-                <option value="address">Location</option>
-                <option value="vehicleNo">Vehicle Number</option>
-                <option value="data">Data</option>
-              </Form.Select>
-            </Col>
-            <Col md={8}>
-              <Form.Control
-                placeholder="Search…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="custom_input1"
-              />
-            </Col>
-          </Row>
-
-          {/* -------- TABLE -------- */}
-          <Table striped bordered hover responsive className="db1_table">
-            <thead>
-              <tr>
-                <th>
-                  <Form.Check
-                    checked={selectAll}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      setSelectAll(isChecked);
-                      setSelectedRows(isChecked ? sensorData.map((d) => d._id) : []);
-                    }}
-                  />
-                </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => setSortAsc(!sortAsc)}>
-                  Date {sortAsc ? '↑' : '↓'}
-                </th>
-                <th>Location</th>
-                <th>Data</th>
-                <th>Vehicle No.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sensorData.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="text-center">No sensor data found</td>
-                </tr>
-              ) : (
-                sensorData.map((row) => (
-                  <tr key={row._id}>
-                    <td>
-                      <Form.Check
-                        checked={selectedRows.includes(row._id)}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setSelectedRows((prev) =>
-                            isChecked ? [...prev, row._id] : prev.filter((id) => id !== row._id)
-                          );
-                          if (!isChecked) setSelectAll(false);
-                        }}
-                      />
-                    </td>
-                    <td>{row.D}</td>
-                    <td>{row.address}</td>
-                    <td>{Array.isArray(row.data) ? row.data.join(', ') : row.data} mm</td>
-                    <td>{row.vehicleNo}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-
-          {/* -------- PAGINATION -------- */}
-{totalPages > 1 && (
-  <div className="d-flex justify-content-center mt-3 me-3">
-    <nav>
-      <ul className="pagination modern-pagination">
-        {/* Prev button */}
-        <li className={`page-item ${currentPage === 1 && 'disabled'}`}>
-          <button className="page-link" onClick={() => setCurrentPage(p => p - 1)}>
-            Prev
-          </button>
-        </li>
-
-        {(() => {
-          const pages = [];
-          if (totalPages <= 5) {
-            for (let i = 1; i <= totalPages; i++) pages.push(i);
-          } else {
-            if (currentPage <= 3) pages.push(1, 2, 3, 4, '…', totalPages);
-            else if (currentPage >= totalPages - 2)
-              pages.push(1, '…', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
-            else
-              pages.push(1, '…', currentPage - 1, currentPage, currentPage + 1, '…', totalPages);
-          }
-          return pages.map((pg, idx) => (
-            <li
-              key={idx}
-              className={`page-item ${
-                pg === currentPage ? 'active' : ''
-              } ${pg === '…' && 'disabled'}`}
+    <div className={styles.page}>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <p className={styles.kicker}>
+            <Clock3 size={14} aria-hidden />
+            {todayLabel}
+          </p>
+          <h1 className={styles.welcome}>Welcome back, {userName}</h1>
+          <p className={styles.subtitle}>
+            {visibleDashboards.length} dashboard{visibleDashboards.length === 1 ? '' : 's'} ready
+            {companyName ? (
+              <>
+                {' '}
+                · <span className={styles.companyTag}>{companyName}</span>
+              </>
+            ) : null}
+          </p>
+          <div className={styles.badges}>
+            {role ? <span className={styles.badge}>{role}</span> : null}
+            <span
+              className={`${styles.badge} ${
+                subscriptionStatus === 'active' ? styles.badgeOk : styles.badgeWarn
+              }`}
             >
-              {pg === '…' ? (
-                <span className="page-link">…</span>
-              ) : (
-                <button className="page-link" onClick={() => setCurrentPage(pg)}>
-                  {pg}
-                </button>
-              )}
-            </li>
-          ));
-        })()}
-
-        {/* Next button */}
-        <li className={`page-item ${currentPage === totalPages && 'disabled'}`}>
-          <button className="page-link" onClick={() => setCurrentPage(p => p + 1)}>
-            Next
-          </button>
-        </li>
-      </ul>
-    </nav>
-  </div>
-)}
-
+              <ShieldCheck size={12} aria-hidden />
+              {subscriptionStatus === 'active' ? 'Subscription active' : 'Subscription inactive'}
+            </span>
+          </div>
         </div>
-      </div>
-    </Col>
+
+        <label className={styles.searchWrap}>
+          <Search size={16} className={styles.searchIcon} aria-hidden />
+          <input
+            className={styles.searchInput}
+            type="search"
+            placeholder="Search dashboards..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Search dashboards"
+          />
+        </label>
+      </section>
+
+      {kpiItems.length > 0 && !query && (
+        <section className={styles.kpiRow} aria-label="Account summary">
+          {kpiItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <article key={item.id} className={styles.kpiCard}>
+                <span className={styles.kpiIcon} aria-hidden>
+                  <Icon size={18} />
+                </span>
+                <div>
+                  <p className={styles.kpiValue}>{item.value}</p>
+                  <p className={styles.kpiLabel}>{item.label}</p>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      {recentTiles.length > 0 && !query && (
+        <section className={styles.section} aria-labelledby="home-recent">
+          <h2 id="home-recent" className={styles.sectionTitle}>
+            Recently opened
+          </h2>
+          <div className={styles.recentRow}>
+            {recentTiles.map((tile) => {
+              const Icon = tile.icon;
+              return (
+                <button
+                  key={tile.id}
+                  type="button"
+                  className={styles.recentChip}
+                  style={{ '--tile-accent': tile.accent }}
+                  onClick={() => openTile(tile)}
+                >
+                  <Icon size={14} aria-hidden />
+                  {tile.title}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {!hasAnyTiles ? (
+        <div className={styles.empty}>
+          <p className={styles.emptyTitle}>
+            {query ? 'No matching dashboards' : 'No dashboards available'}
+          </p>
+          <p className={styles.emptyText}>
+            {query
+              ? 'Try a different search term.'
+              : 'Ask your admin to enable dashboards for this company.'}
+          </p>
+        </div>
+      ) : (
+        <>
+          {dashboardTiles.length > 0 && (
+            <section className={styles.section} aria-labelledby="home-dashboards">
+              <h2 id="home-dashboards" className={styles.sectionTitle}>
+                Dashboards
+              </h2>
+              <div className={styles.grid}>
+                {dashboardTiles.map((tile) => (
+                  <PortalTile
+                    key={tile.id}
+                    tile={tile}
+                    size="large"
+                    disabled={isTileDisabled(tile, accessContext)}
+                    metric={getTileMetric(tile, insights)}
+                    onOpen={openTile}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {adminTiles.length > 0 && (
+            <section className={styles.section} aria-labelledby="home-admin">
+              <h2 id="home-admin" className={styles.sectionTitle}>
+                Admin & Tools
+              </h2>
+              <div className={styles.gridSmall}>
+                {adminTiles.map((tile) => (
+                  <PortalTile
+                    key={tile.id}
+                    tile={tile}
+                    size="small"
+                    disabled={isTileDisabled(tile, accessContext)}
+                    metric={getTileMetric(tile, insights)}
+                    onOpen={openTile}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </div>
   );
 }
