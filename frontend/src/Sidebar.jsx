@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Button, Spinner } from 'react-bootstrap';
 import {
   LayoutDashboard,
-  FileText,
   Settings,
   LogOut,
   Activity,
@@ -86,13 +85,11 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         // ✅ Use individual access check for each dashboard
         const accessChecks = await Promise.all([
           axios.get('/api/check-dashboard-access/home', { withCredentials: true }),
-          axios.get('/api/check-dashboard-access/dashboard', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/trackerOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/craneOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/elevatorOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/energyOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/fleetAlarms', { withCredentials: true }),
-          axios.get('/api/check-dashboard-access/reports', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addUsers', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addDevices', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/subscription', { withCredentials: true }),
@@ -101,17 +98,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
 
         const access = {
           home: accessChecks[0].data.hasAccess,
-          dashboard: accessChecks[1].data.hasAccess,
-          trackerOverview: accessChecks[2].data.hasAccess,
-          craneOverview: accessChecks[3].data.hasAccess,
-          elevatorOverview: accessChecks[4].data.hasAccess,
-          energyOverview: accessChecks[5].data.hasAccess,
-          fleetAlarms: accessChecks[6].data.hasAccess,
-          reports: accessChecks[7].data.hasAccess,
-          addUsers: accessChecks[8].data.hasAccess,
-          addDevices: accessChecks[9].data.hasAccess,
-          subscription: accessChecks[10].data.hasAccess,
-          settings: accessChecks[11].data.hasAccess,
+          trackerOverview: accessChecks[1].data.hasAccess,
+          craneOverview: accessChecks[2].data.hasAccess,
+          elevatorOverview: accessChecks[3].data.hasAccess,
+          energyOverview: accessChecks[4].data.hasAccess,
+          fleetAlarms: accessChecks[5].data.hasAccess,
+          addUsers: accessChecks[6].data.hasAccess,
+          addDevices: accessChecks[7].data.hasAccess,
+          subscription: accessChecks[8].data.hasAccess,
+          settings: accessChecks[9].data.hasAccess,
         };
 
         setCompanyAccess(access);
@@ -121,14 +116,12 @@ export default function Sidebar({ isOpen, closeSidebar }) {
         // Set default access if API fails
         setCompanyAccess({
           home: true,
-          dashboard: true,
           trackerOverview: false,
           craneOverview: false,
           elevatorOverview: false,
           energyOverview: false,
           fleetAlarms: false,
           craneDashboard: false,
-          reports: true,
           addUsers: true,
           addDevices: true,
           subscription: true,
@@ -236,15 +229,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 </>
               ))}
 
-            {/* ✅ Dashboard */}
-            {(role === 'superadmin' || companyAccess.dashboard) &&
-              navBtn('/dashboard/device', null, (
-                <>
-                  <FileText size={ICON} />
-                  <span className={styles.navText}>Dashboard</span>
-                </>
-              ))}
-
             {/* ✅ Fleet Monitor — Fleet Map + Attendance only while inside this section */}
             {(role === 'superadmin' || companyAccess.trackerOverview) && (() => {
               const onFleetSection =
@@ -339,15 +323,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 <>
                   <Bell size={ICON} />
                   <span className={styles.navText}>Fleet Alarms</span>
-                </>
-              ))}
-
-            {/* ✅ Reports */}
-            {(role === 'superadmin' || companyAccess.reports) &&
-              navBtn('/dashboard/reports', null, (
-                <>
-                  <FileText size={ICON} />
-                  <span className={styles.navText}>Report</span>
                 </>
               ))}
 

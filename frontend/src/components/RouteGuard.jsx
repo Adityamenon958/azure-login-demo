@@ -25,11 +25,9 @@ export default function RouteGuard({ children, requiredAccess }) {
         { access: 'elevatorOverview', path: '/dashboard/elevator-overview' },
         { access: 'energyOverview', path: '/dashboard/energy-overview' },
         { access: 'fleetAlarms', path: '/dashboard/energy-alarms' },
-        { access: 'reports', path: '/dashboard/reports' },
         
         // Tier 2: Device Management (Medium Priority)  
         { access: 'addDevices', path: '/dashboard/adddevice' },
-        { access: 'dashboard', path: '/dashboard/device' },
         
         // Tier 3: Administrative (Lowest Priority)
         { access: 'addUsers', path: '/dashboard/adduser' },

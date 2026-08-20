@@ -29,11 +29,9 @@ Controlled via backend + real-time sync from Razorpay.
 AddUser and AddDevice are disabled when inactive, but visible.
 
 ✅ 5. Database Models
-User, Device, LevelSensor
+User, Device, and product-specific log models (CraneLog, ElevatorEvent, EnergyMeterLog, AvlRecord, etc.)
 
 UID = unique ID based on companyName prefix + device ID
-
-LevelSensor data includes timestamp (dateISO) for sorting and pagination
 
 ✅ 6. Frontend Patterns
 Use axios with withCredentials: true
@@ -46,10 +44,6 @@ Avoid over-complicated Redux unless absolutely required
 
 ✅ 7. API Usage Rules
 GET /api/devices → device list
-
-POST /api/levelsensors → receive sensor data
-
-GET /api/dashboard → card stats
 
 All protected endpoints require valid token in cookie
 

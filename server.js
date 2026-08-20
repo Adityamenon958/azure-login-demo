@@ -14,7 +14,6 @@ const path = require('path');
 const connectDB = require('./backend/db');
 const Device = require('./backend/models/Device');
 const User = require('./backend/models/User');
-const LevelSensor = require('./backend/models/LevelSensor');
 const SimulatorDevice = require('./backend/models/SimulatorDevice');
 const AvlRecord = require('./backend/models/AvlRecord');
 const gpsTrackerSim = require('./backend/utils/gpsTrackerSim');
@@ -24,14 +23,10 @@ const cookieParser = require('cookie-parser');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');  // ✅ For webhook signature verification
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-const Alarm = require("./backend/models/Alarm"); 
 const { getErrorDetails, normalizeCode } = require("./backend/utils/errorCodeLookup");
 const app = express();
 const PORT = process.env.PORT || 8080;
-/**  In-memory latch: { uid: true | false }  */
-const alarmLatch = Object.create(null);
 const sendEmail = require("./backend/utils/sendEmail");
-const { alarmEmail } = require("./backend/utils/emailTemplates");
 
 const isProd = process.env.NODE_ENV === 'production';
 const DISABLE_PAYMENTS = process.env.DISABLE_PAYMENTS === 'true';
@@ -7798,286 +7793,6 @@ app.put('/api/energy-meter/parameter-map', authenticateToken, async (req, res) =
   }
 });
 
-// ✅ Level Sensor
-// ✅ POST: Store sensor data from TRB245
-
-/* 🚀 INSERT SENSOR DATA */
-app.post('/api/levelsensor', async (req, res) => {
-  try {
-    /* 0️⃣ sanity */
-    if (!req.body) return res.status(400).json({ message: 'Empty payload' });
-
-    /** ---------- unpack & prep ---------- **/
-    const {
-      D         = null,                    // "DD/MM/YYYY HH:mm:ss"
-      uid       = null,
-      level     = null,
-      ts        = null,
-      data      = null,                    // array OR single number
-      address   = null,                    // keep as plain string
-      vehicleNo = null,
-      mapKey    = null
-    } = req.body;
-
-    /* 1️⃣ ISO timestamp for sorting / querying */
-    let dateISO = null;
-    if (typeof D === 'string' && D.includes('/')) {
-      const [date, time = '00:00:00']   = D.split(' ');
-      const [dd, mm, yyyy]              = date.split('/').map(Number);
-      const [h,  m,  s]                 = time.split(':').map(Number);
-      dateISO = new Date(Date.UTC(yyyy, mm - 1, dd, h, m, s));
-    }
-
-    /* 2️⃣ which company does this UID belong to? */
-    let companyUid = null;
-    const dev = await Device.findOne({ uid }).lean();
-    if (dev) companyUid = dev.companyName || null;
-
-    /* 3️⃣ build sensor doc */
-    const parsedData = Array.isArray(data)
-  ? data.map(d => Math.round(Number(d))) // ensure numeric
-  : data === undefined
-    ? []
-    : [Math.round(Number(data))];
-
-// 🌡️ readings object from mapKey (dynamic mapping)
-const readings = {};
-if (typeof mapKey === 'string' && Array.isArray(parsedData)) {
-  const keys = mapKey.split('_');
-  keys.forEach((label, idx) => {
-    const rawVal = parsedData[idx];
-    if (label && rawVal !== undefined) {
-      readings[label] = rawVal / 10; // e.g. 327 → 32.7
-    }
-  });
-}
-
-// 🧾 Store all sensor readings with mapping
-const sensorDoc = new LevelSensor({
-  D,
-  uid,
-  level,
-  ts,
-  address,
-  vehicleNo,
-  data: parsedData,
-  readings,
-  mapKey,
-  dateISO,
-  companyUid
-});
-
-
-    /** ---------- alarm evaluation ---------- **/
-    const TH = { highHigh: 50, high: 35, low: 25, lowLow: 10 };
-    const alarmsToInsert = [];
-
-    if (Array.isArray(parsedData) && typeof mapKey === 'string') {
-  const keys = mapKey.split('_');
-  parsedData.forEach((raw, idx) => {
-    const deg = raw / 10;
-    let level = null;
-
-    if (deg >= TH.highHigh) level = 'HIGH HIGH';
-    else if (deg >= TH.high) level = 'HIGH';
-    else if (deg <= TH.lowLow) level = 'LOW LOW';
-    else if (deg <= TH.low) level = 'LOW';
-
-    const sensorId = keys[idx] || `S${idx + 1}`; // fallback label
-
-    if (level) {
-      alarmsToInsert.push({
-        uid,
-        sensorId,
-        value: deg,
-        level,
-        vehicleNo,
-        dateISO: dateISO || new Date(),
-        D,
-      });
-    }
-  });
-}
-
-
-    /* 4️⃣ store alarms (if any) */
-    if (alarmsToInsert.length) {
-      await Alarm.insertMany(alarmsToInsert);
-      console.log(`🚨 stored ${alarmsToInsert.length} alarm(s) for ${uid}`);
-    }
-
-    /* 5️⃣ e-mail once per "alarm episode" using latch */
-try {
-  const hasAlarm = alarmsToInsert.length > 0;
-  const latched  = alarmLatch[uid] === true;
-
-  console.log(`Latch for ${uid} at start →`, latched);
-
-  /* ─── first alarm of an episode ── */
-  if (hasAlarm && !latched) {
-    alarmLatch[uid] = true;                       // latch ON
-
-    /* ─── find all active users of the same company ── */
-    const deviceDoc = await Device.findOne({ uid }).lean();
-
-    const recipients = deviceDoc
-      ? await User.find({
-          companyName: deviceDoc.companyName,
-          email: { $exists: true, $ne: "" },
-          // subscriptionStatus: "active"            // optional filter
-          // role: { $in: ["admin", "superadmin"] } // uncomment if needed
-        }).select("email -_id").lean()
-      : [];
-
-    if (recipients.length) {
-      const { subject, html } = alarmEmail({ uid, alarms: alarmsToInsert });
-
-      for (const { email } of recipients) {
-        await sendEmail({ to: email, subject, html });
-        console.log(`✉️  Alarm mail sent to ${email} for ${uid}`);
-      }
-    } else {
-      console.warn("✉️  No recipients found for uid", uid);
-    }
-  }
-
-  /* ─── clear latch when readings return to normal ── */
-  if (!hasAlarm && latched) {
-    alarmLatch[uid] = false;
-    console.log(`✅ values normal – latch for ${uid} cleared`);
-  }
-} catch (mailErr) {
-  console.error("✉️  Mail send failed:", mailErr.message);
-  // do NOT throw – we still want the sensor data saved
-}
-
-
-    /* 6️⃣ finally save the sensor reading itself */
-    await sensorDoc.save();
-    res.status(201).json({ message: 'Sensor data saved ✅' });
-  } catch (err) {
-    console.error('Sensor save error:', err);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
-
-
-/* 🚀 SERVER-SIDE PAGINATION / SEARCH / SORT
- * GET /api/levelsensor?page=1&limit=9&search=&column=&sort=asc|desc
- */
-app.get('/api/levelsensor', authenticateToken, async (req, res) => {
-  try {
-    /* 1. Query params */
-    const page   = parseInt(req.query.page  || '1', 10);
-    const limit  = parseInt(req.query.limit || '10', 10);
-    const skip   = (page - 1) * limit;
-    const search = (req.query.search || '').trim();
-    const column = (req.query.column || '').trim();          // e.g. "vehicleNo"
-    const sort   = req.query.sort === 'asc' ? 1 : -1;        // default newest→oldest
-
-    /* 2. Role / company from JWT */
-    const { role, companyName } = req.user;
-
-    /* 3. Base filter — admins/users limited to their own devices */
-    const mongoFilter = {};
-    if (role !== 'superadmin') {
-      const devs = await Device.find({ companyName }).select('uid -_id').lean();
-      const uids = devs.map(d => d.uid);
-      mongoFilter.uid = { $in: uids.length ? uids : ['__none__'] };  // empty fallback
-    }
-
-    if (req.query.uid) {
-      mongoFilter.uid = req.query.uid;   // no regex ⇒ no prefix collisions
-    }
-    
-    /* 4. Search filter */
-    /* 4. Search filter -------------------------------------------------- */
-if (search) {
-  const rx       = new RegExp(search, "i");
-  const numeric  = Number(search);                 // NaN if not a number
-  const isNumber = !isNaN(numeric);
-
-  if (column) {
-    if (column === "data") {
-      /* ── user chose the "Data" column ── */
-      if (isNumber) {
-        // in DB the value is stored ×10 (27 °C → 270)
-        mongoFilter.data = { $elemMatch: { $eq: Math.round(numeric * 10) } };
-      } else {
-        // if user typed non-numeric, no match for data column
-        mongoFilter.data = { $exists: false };     // will return empty set
-      }
-    } else {
-     if (column === 'uid') {
-     /* exact (case-insensitive) match → returns only that UID */
-     mongoFilter.uid = { $regex: `^${search}$`, $options: 'i' };
-   } else {
-     mongoFilter[column] = rx;
-   }
-    }
-  } else {
-    /* ── "All Columns" search ── */
-    mongoFilter.$or = [
-      { D:         rx },
-      { address:   rx },
-      { vehicleNo: rx },
-      { uid:       rx },
-      isNumber && {
-        data: { $elemMatch: { $eq: Math.round(numeric * 10) } }
-      }
-    ].filter(Boolean);                            // remove false entry if NaN
-  }
-}
-
-
-    /* 5. Sort & fetch one page */
-    const sortObj = { dateISO: sort };
-    const [data, total] = await Promise.all([
-      LevelSensor.find(mongoFilter).sort(sortObj).skip(skip).limit(limit).lean(),
-      LevelSensor.countDocuments(mongoFilter)
-    ]);
-
-    res.json({ data, total });
-  } catch (err) {
-    console.error('LevelSensor GET error:', err);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
-
-// GET /api/levelsensor/latest?uid=TRB245-01
-app.get('/api/levelsensor/latest', authenticateToken, async (req, res) => {
-  const { uid } = req.query;
-  const doc = await LevelSensor.findOne({ uid })
-    .sort({ dateISO: -1 })
-    .lean();
-  if (!doc) return res.status(404).json({ message: 'No data' });
-  res.json(doc);
-});
-
-// GET /api/alarms?uid=GS-1234&page=1&limit=20
-app.get("/api/alarms", authenticateToken, async (req, res) => {
-  try {
-    const page  = parseInt(req.query.page  || "1", 10);
-    const limit = parseInt(req.query.limit || "20", 10);
-    const skip  = (page - 1) * limit;
-    const uid   = req.query.uid;
-
-    const filter = {};
-    if (uid) filter.uid = uid;
-
-    const [data, total] = await Promise.all([
-      Alarm.find(filter).sort({ dateISO: -1 }).skip(skip).limit(limit).lean(),
-      Alarm.countDocuments(filter),
-    ]);
-
-    res.json({ data, total });
-  } catch (err) {
-    console.error("Alarm GET error:", err);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-
 /* ------------------------------------------------------------------ */
 
 // Google Login 
@@ -8276,55 +7991,16 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// ✅ Get unique UIDs for dropdown (All sensor devices)
-app.get("/api/levelsensor/uids", authenticateToken, async (req, res) => {
-  try {
-    const { role, companyName } = req.user;
-
-    let filter = {};
-
-    if (role !== "superadmin") {
-      // Only get devices belonging to the logged-in user's company
-      const devs = await Device.find({ companyName }).select("uid -_id").lean();
-      const uids = devs.map((d) => d.uid);
-
-      // If no matching devices, return early
-      if (uids.length === 0) {
-        return res.json([]);
-      }
-
-      filter.uid = { $in: uids };
-    }
-
-    const distinctUIDs = await LevelSensor.distinct("uid", filter);
-    return res.json(distinctUIDs);
-  } catch (err) {
-    console.error("UID Fetch Error:", err);
-    return res.status(500).json({ message: "Failed to fetch device UIDs" });
-  }
-});
-
-
-
-
-
-
-
-
-
-
 // ✅ Company Dashboard Access Control APIs
 
 const DEFAULT_DASHBOARD_ACCESS = {
   home: true,
-  dashboard: true,
   trackerOverview: false,
   craneOverview: false,
   elevatorOverview: false,
   energyOverview: false,
   fleetAlarms: false,
   craneDashboard: false,
-  reports: true,
   addUsers: true,
   addDevices: true,
   subscription: true,

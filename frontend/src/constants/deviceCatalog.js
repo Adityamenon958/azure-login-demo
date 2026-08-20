@@ -3,7 +3,6 @@
  */
 
 export const DEVICE_TYPE_OPTIONS = [
-  { value: 'levelSensor', label: 'Level Sensor' },
   { value: 'crane', label: 'Crane' },
   { value: 'elevator', label: 'Elevator' },
   { value: 'energyMeter', label: 'Energy Meter' },
@@ -13,7 +12,6 @@ export const DEVICE_TYPE_OPTIONS = [
 export const MODELS_BY_CATEGORY = {
   gpsTracker: ['FMB920', 'FMB125'],
   energyMeter: [],
-  levelSensor: [],
   crane: [],
   elevator: [],
 };

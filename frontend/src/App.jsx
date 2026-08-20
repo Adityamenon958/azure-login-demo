@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route,Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
-import ReportsPage from './pages/ReportsPage';
 import Settings from './pages/Settings';
 import ManageCompany from './pages/ManageCompany';
 import AddUser from './pages/ManageCompany';
@@ -14,7 +13,6 @@ import FullPageSpinner from './components/FullPageSpinner';
 import LoginCarousel from './components/login/LoginCarousel';
 import RouteGuard from './components/RouteGuard';
 import './App.css';
-import DynamicDb from './components/DynamicDb';
 import CraneDashboard from './pages/CraneDashboard';
 import CraneOverview from './pages/CraneOverview';
 import ElevatorOverview from './pages/ElevatorOverview';
@@ -51,9 +49,6 @@ function App() {
             <DashboardHome2 />
           </RouteGuard>
         } />
-        {/* <Route path="dynamicdb" element={<DynamicDb />} /> */}
-        <Route path="device" element={<Navigate to="GS-1234" replace />} />
-        <Route path="device/:deviceId" element={<DynamicDb />} />
         <Route path="crane" element={<CraneDashboard />} />
 
         {/* ✅ Tracker Overview — primary GPS dashboard (independent of Crane) */}
@@ -101,12 +96,6 @@ function App() {
         <Route path="energy-alarms" element={
           <RouteGuard requiredAccess="fleetAlarms">
             <EnergyFleetAlarmSettings />
-          </RouteGuard>
-        } />
-        
-        <Route path="reports" element={
-          <RouteGuard requiredAccess="reports">
-            <ReportsPage />
           </RouteGuard>
         } />
         

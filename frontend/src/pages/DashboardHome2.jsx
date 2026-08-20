@@ -25,13 +25,11 @@ import HomeFeatureCarousel from './HomeFeatureCarousel';
 
 const ACCESS_KEYS = [
   'home',
-  'dashboard',
   'trackerOverview',
   'craneOverview',
   'elevatorOverview',
   'energyOverview',
   'fleetAlarms',
-  'reports',
   'addUsers',
   'addDevices',
   'subscription',
@@ -62,7 +60,7 @@ function rememberTile(tileId) {
 }
 
 function countByType(devices) {
-  const byType = { crane: 0, elevator: 0, energyMeter: 0, gpsTracker: 0, levelSensor: 0 };
+  const byType = { crane: 0, elevator: 0, energyMeter: 0, gpsTracker: 0 };
   for (const device of devices) {
     if (Object.prototype.hasOwnProperty.call(byType, device.deviceType)) {
       byType[device.deviceType] += 1;

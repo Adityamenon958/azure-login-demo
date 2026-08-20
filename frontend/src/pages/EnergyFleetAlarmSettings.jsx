@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Col, Row, Card, Table, Button, Modal, Badge, Spinner, Form, Dropdown } from 'react-bootstrap';
+import { Col, Row, Button, Modal, Badge, Spinner, Form, Dropdown } from 'react-bootstrap';
 import { Bell, Plus, Pencil, Trash2 } from 'lucide-react';
 import EnergyMeterAlarmRuleForm from '../components/energy/EnergyMeterAlarmRuleForm';
 import {
@@ -14,6 +14,7 @@ import {
   SEVERITY_OPTIONS,
 } from '../components/energy/energyAlarmConfig';
 import styles from './EnergyFleetAlarmSettings.module.css';
+import mainStyles from './MainContent.module.css';
 import { formatMeterDisplayLabel } from '../components/energy/energyChartShared';
 import {
   loadFleetAlarmDraft,
@@ -210,112 +211,157 @@ export default function EnergyFleetAlarmSettings() {
     return `${filterMeterIds.length} meters selected`;
   };
 
+  const meterLabel = (meterId) => {
+    const m = meters.find((x) => x.meterId === meterId);
+    return m ? formatMeterDisplayLabel(m.meterId, m.machineName) : meterId;
+  };
+
   return (
-    <Col xs={12} className={styles.page}>
-      <div className={styles.header}>
-        <div>
-          <h5 className={styles.title}>
-            <Bell size={20} className="me-2" />
-            Fleet Alarm Settings
-          </h5>
-          <p className={styles.subtitle}>Manage alarm rules across all energy meters</p>
-        </div>
-        <Button variant="primary" onClick={openCreate} disabled={!meters.length}>
-          <Plus size={16} className="me-1" />
-          Add Rule
-        </Button>
-      </div>
+    <Col xs={12} md={9} lg={10} xl={10} className={mainStyles.main}>
+      <div className={styles.page}>
+        <header className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.kicker}>Energy</p>
+            <h1 className={styles.title}>
+              <span className={styles.titleIcon} aria-hidden>
+                <Bell size={18} strokeWidth={2.2} />
+              </span>
+              Fleet Alarm Settings
+            </h1>
+            <p className={styles.subtitle}>
+              Manage alarm rules across all energy meters — thresholds, severity, and enable/disable.
+            </p>
+          </div>
+          <div className={styles.heroActions}>
+            {!loading && (
+              <span className={styles.ruleCount}>
+                {filtered.length} of {rules.length} rule{rules.length === 1 ? '' : 's'}
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.addBtn}
+              onClick={openCreate}
+              disabled={!meters.length}
+            >
+              <Plus size={16} strokeWidth={2.4} />
+              Add Rule
+            </button>
+          </div>
+        </header>
 
-      {showDraftBanner && (
-        <div className={styles.draftBanner}>
-          <span>You have an unsaved alarm rule draft.</span>
-          <Button size="sm" variant="outline-primary" onClick={resumeDraft}>
-            Continue editing
-          </Button>
-        </div>
-      )}
+        {showDraftBanner && (
+          <div className={styles.draftBanner}>
+            <span>You have an unsaved alarm rule draft.</span>
+            <Button size="sm" variant="outline-primary" onClick={resumeDraft}>
+              Continue editing
+            </Button>
+          </div>
+        )}
 
-      <Card className={styles.toolbar}>
-        <Card.Body>
-          <Row className="g-2 align-items-end">
-            <Col md={4}>
-              <Form.Label className="small mb-1">Meters</Form.Label>
-              <Dropdown className={styles.meterDropdown} autoClose="outside">
-                <Dropdown.Toggle
-                  variant="outline-secondary"
-                  className={styles.meterDropdownToggle}
-                  disabled={!meters.length}
-                >
-                  {meterFilterLabel()}
-                </Dropdown.Toggle>
-                <Dropdown.Menu className={styles.meterDropdownMenu}>
-                  <Dropdown.Item onClick={toggleSelectAllFilterMeters}>
-                    {allMetersSelected ? 'Deselect all' : 'Select all'}
-                  </Dropdown.Item>
-                  <Dropdown.Divider />
-                  {meters.map((m) => (
-                    <div
-                      key={m.meterId}
-                      className={styles.meterCheck}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Form.Check
-                        type="checkbox"
-                        id={`filter-meter-${m.meterId}`}
-                        label={formatMeterDisplayLabel(m.meterId, m.machineName)}
-                        checked={filterMeterIds.includes(m.meterId)}
-                        onChange={() => toggleFilterMeter(m.meterId)}
-                      />
-                    </div>
+        <section className={styles.panel}>
+          <div className={styles.panelBody}>
+            <p className={styles.filtersTitle}>Filters</p>
+            <Row className="g-3 align-items-end">
+              <Col md={4} className={styles.filterControl}>
+                <label className={styles.filterLabel}>Meters</label>
+                <Dropdown className={styles.meterDropdown} autoClose="outside">
+                  <Dropdown.Toggle
+                    variant="outline-secondary"
+                    className={styles.meterDropdownToggle}
+                    disabled={!meters.length}
+                  >
+                    {meterFilterLabel()}
+                  </Dropdown.Toggle>
+                  <Dropdown.Menu className={styles.meterDropdownMenu}>
+                    <Dropdown.Item onClick={toggleSelectAllFilterMeters}>
+                      {allMetersSelected ? 'Deselect all' : 'Select all'}
+                    </Dropdown.Item>
+                    <Dropdown.Divider />
+                    {meters.map((m) => (
+                      <div
+                        key={m.meterId}
+                        className={styles.meterCheck}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Form.Check
+                          type="checkbox"
+                          id={`filter-meter-${m.meterId}`}
+                          label={formatMeterDisplayLabel(m.meterId, m.machineName)}
+                          checked={filterMeterIds.includes(m.meterId)}
+                          onChange={() => toggleFilterMeter(m.meterId)}
+                        />
+                      </div>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown>
+              </Col>
+              <Col md={2} className={styles.filterControl}>
+                <label className={styles.filterLabel}>Metric</label>
+                <Form.Select value={filterMetric} onChange={(e) => setFilterMetric(e.target.value)}>
+                  <option value="">All</option>
+                  {Object.entries(ALARM_METRICS).map(([key, cfg]) => (
+                    <option key={key} value={key}>
+                      {cfg.label}
+                    </option>
                   ))}
-                </Dropdown.Menu>
-              </Dropdown>
-            </Col>
-            <Col md={2}>
-              <Form.Label className="small mb-1">Metric</Form.Label>
-              <Form.Select value={filterMetric} onChange={(e) => setFilterMetric(e.target.value)}>
-                <option value="">All</option>
-                {Object.entries(ALARM_METRICS).map(([key, cfg]) => (
-                  <option key={key} value={key}>
-                    {cfg.label}
-                  </option>
-                ))}
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Label className="small mb-1">Severity</Form.Label>
-              <Form.Select value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
-                <option value="">All</option>
-                {SEVERITY_OPTIONS.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Label className="small mb-1">Enabled</Form.Label>
-              <Form.Select value={filterEnabled} onChange={(e) => setFilterEnabled(e.target.value)}>
-                <option value="">All</option>
-                <option value="true">Enabled</option>
-                <option value="false">Disabled</option>
-              </Form.Select>
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
+                </Form.Select>
+              </Col>
+              <Col md={2} className={styles.filterControl}>
+                <label className={styles.filterLabel}>Severity</label>
+                <Form.Select
+                  value={filterSeverity}
+                  onChange={(e) => setFilterSeverity(e.target.value)}
+                >
+                  <option value="">All</option>
+                  {SEVERITY_OPTIONS.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Col>
+              <Col md={2} className={styles.filterControl}>
+                <label className={styles.filterLabel}>Enabled</label>
+                <Form.Select
+                  value={filterEnabled}
+                  onChange={(e) => setFilterEnabled(e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </Form.Select>
+              </Col>
+            </Row>
+          </div>
+        </section>
 
-      <Card>
-        <Card.Body className="p-0">
+        <section className={styles.panel}>
+          <div className={styles.tablePanelHead}>
+            <div>
+              <h2 className={styles.tablePanelTitle}>Alarm rules</h2>
+              <p className={styles.tablePanelMeta}>
+                Edit thresholds or toggle rules without leaving this page
+              </p>
+            </div>
+          </div>
+
           {loading ? (
             <div className="text-center py-5">
-              <Spinner animation="border" />
+              <Spinner animation="border" variant="primary" />
             </div>
           ) : filtered.length === 0 ? (
-            <div className={styles.empty}>No alarm rules match your filters.</div>
+            <div className={styles.empty}>
+              <p className={styles.emptyTitle}>No matching rules</p>
+              <p className={styles.emptyText}>
+                {rules.length === 0
+                  ? 'Create your first fleet alarm rule to get started.'
+                  : 'Try clearing filters or pick a different meter / metric.'}
+              </p>
+            </div>
           ) : (
             <div className={styles.tableWrap}>
-              <Table hover responsive className="mb-0">
+              <table className="table table-hover mb-0">
                 <thead>
                   <tr>
                     <th>Meter</th>
@@ -325,13 +371,13 @@ export default function EnergyFleetAlarmSettings() {
                     <th>Severity</th>
                     <th>Enabled</th>
                     <th>Label</th>
-                    <th />
+                    <th aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((rule) => (
                     <tr key={rule._id}>
-                      <td>{rule.meterId}</td>
+                      <td className={styles.meterCell}>{meterLabel(rule.meterId)}</td>
                       <td>
                         {getMetricLabel(rule.metric)}
                         {rule.consumptionPeriod && (
@@ -341,7 +387,13 @@ export default function EnergyFleetAlarmSettings() {
                       <td>{formatValueWithUnit(rule.minThreshold, rule.metric)}</td>
                       <td>{formatValueWithUnit(rule.maxThreshold, rule.metric)}</td>
                       <td>
-                        <Badge bg={rule.severity === 'critical' ? 'danger' : 'warning'}>
+                        <Badge
+                          className={
+                            rule.severity === 'critical'
+                              ? styles.severityCritical
+                              : styles.severityWarning
+                          }
+                        >
                           {rule.severity}
                         </Badge>
                       </td>
@@ -350,57 +402,68 @@ export default function EnergyFleetAlarmSettings() {
                           type="switch"
                           checked={rule.enabled !== false}
                           onChange={() => handleToggle(rule)}
+                          aria-label={`Toggle rule ${rule.label || rule.metric}`}
                         />
                       </td>
                       <td>{rule.label || '—'}</td>
                       <td className={styles.actions}>
-                        <Button variant="link" size="sm" onClick={() => openEdit(rule)}>
+                        <button
+                          type="button"
+                          className={`${styles.iconBtn} me-1`}
+                          onClick={() => openEdit(rule)}
+                          title="Edit rule"
+                        >
                           <Pencil size={14} />
-                        </Button>
-                        <Button variant="link" size="sm" className="text-danger" onClick={() => handleDelete(rule._id)}>
+                        </button>
+                        <button
+                          type="button"
+                          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                          onClick={() => handleDelete(rule._id)}
+                          title="Delete rule"
+                        >
                           <Trash2 size={14} />
-                        </Button>
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </Table>
+              </table>
             </div>
           )}
-        </Card.Body>
-      </Card>
+        </section>
 
-      <Modal show={showModal} onHide={closeModal} centered size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>{editingRule ? 'Edit Alarm Rule' : 'Add Alarm Rule'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form.Group className="mb-3">
-            <Form.Label>Meter</Form.Label>
-            <Form.Select
-              value={form.meterId}
-              onChange={(e) => handleFormChange({ ...form, meterId: e.target.value })}
-              disabled={Boolean(editingRule)}
-            >
-              <option value="">Select meter</option>
-              {meters.map((m) => (
-                <option key={m.meterId} value={m.meterId}>
-                  {formatMeterDisplayLabel(m.meterId, m.machineName)}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
-          <EnergyMeterAlarmRuleForm form={form} onChange={handleFormChange} errors={formErrors} />
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={closeModal}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Rule'}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+        <Modal show={showModal} onHide={closeModal} centered size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>{editingRule ? 'Edit Alarm Rule' : 'Add Alarm Rule'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Meter</Form.Label>
+              <Form.Select
+                value={form.meterId}
+                onChange={(e) => handleFormChange({ ...form, meterId: e.target.value })}
+                disabled={Boolean(editingRule)}
+              >
+                <option value="">Select meter</option>
+                {meters.map((m) => (
+                  <option key={m.meterId} value={m.meterId}>
+                    {formatMeterDisplayLabel(m.meterId, m.machineName)}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+            <EnergyMeterAlarmRuleForm form={form} onChange={handleFormChange} errors={formErrors} />
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Rule'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      </div>
     </Col>
   );
 }

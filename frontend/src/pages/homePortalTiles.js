@@ -1,7 +1,6 @@
 // ✅ Single catalog for the Home portal tiles.
 // Keep titles/paths/access keys in sync with Sidebar.jsx.
 import {
-  FileText,
   Radio,
   Map,
   ClipboardList,
@@ -114,34 +113,6 @@ export const DASHBOARD_TILES = [
       'Set thresholds once and reuse them across meters',
       'See active alarms without opening each device',
       'Review history so repeats are easy to catch',
-    ],
-  },
-  {
-    id: 'device-dashboard',
-    title: 'Device Dashboard',
-    description: 'Gauges, charts, and device-level data.',
-    path: '/dashboard/device',
-    accessKey: 'dashboard',
-    icon: FileText,
-    accent: '#4f46e5',
-    highlights: [
-      'Gauges and charts for a single device at a time',
-      'Alarm history next to live readings',
-      'Switch devices without leaving the dashboard',
-    ],
-  },
-  {
-    id: 'reports',
-    title: 'Report',
-    description: 'Export and review operational reports.',
-    path: '/dashboard/reports',
-    accessKey: 'reports',
-    icon: FileText,
-    accent: '#334155',
-    highlights: [
-      'Export operational data for the date range you need',
-      'Reuse saved report history instead of rebuilding',
-      'Share a clean PDF or spreadsheet with your team',
     ],
   },
 ];
@@ -290,12 +261,6 @@ export function getTileMetric(tile, insights) {
         label: insights.activeAlarms === 1 ? 'active alarm' : 'active alarms',
         tone: insights.activeAlarms > 0 ? 'alert' : 'ok',
       };
-    case 'device-dashboard':
-      if (insights.devices == null) return null;
-      return countLabel(insights.devices, 'device', 'devices');
-    case 'reports':
-      if (insights.devices == null) return null;
-      return { value: insights.devices, label: 'devices in reports' };
     case 'manage-company':
       if (insights.companies == null) return null;
       return countLabel(insights.companies, 'company', 'companies');

@@ -67,12 +67,6 @@ function FeatureVisual({ tileId }) {
           <span className={styles.alarmChip}>Offline</span>
         </div>
       );
-    case 'device-dashboard':
-      return (
-        <div className={`${styles.visual} ${styles.visualGauges}`} aria-hidden>
-          <span /><span /><span />
-        </div>
-      );
     case 'manage-users':
       return (
         <div className={`${styles.visual} ${styles.visualList}`} aria-hidden>
@@ -91,7 +85,6 @@ function FeatureVisual({ tileId }) {
     case 'subscription':
     case 'settings':
     case 'simulator':
-    case 'reports':
     default:
       return (
         <div className={`${styles.visual} ${styles.visualDocs}`} aria-hidden>

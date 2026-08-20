@@ -538,7 +538,7 @@
   }
 
   @media (max-width: 799px) {
-    .main, .mainCO, .craneMain, .dynamicDbMain {
+    .main, .mainCO, .craneMain {
       width: 100% !important;
     }
   }
@@ -555,51 +555,6 @@
 
 
   
-/* ─── SEPARATE STYLES FOR DYNAMIC DB DASHBOARD ─── */
-
-/* DynamicDb main container */
-.dynamicDbMain {
-  background-color: #EEF6F8;
-  height: calc(100vh - 2.5rem);
-  overflow-y: auto;
-  border-top-left-radius: 1.625rem;
-  width: 100%;
-  max-width: 100%;
-  padding: 1rem;
-  padding-left: 20px;
-}
-
-/* DynamicDb row heights */
-.dynamicDbTopRow {
-  height: auto;
-  margin-bottom: 5px;
-}
-
-.dynamicDbBottomRow {
-  height: calc(100vh - 320px);
-}
-
-/* DynamicDb panels - Original sizes */
-.dynamicDbPanel .panelDO {
-  height: 190px; /* Your custom height */
-}
-
-.dynamicDbPanel .panelSG {
-  height: 190px; /* Your custom height */
-}
-
-.dynamicDbPanel .panelLC {
-  min-height: 270px; /* Original size */
-}
-
-.dynamicDbPanel .panelAT {
-  height: 225px; /* Original size */
-}
-
-.dynamicDbPanel .panelST {
-  max-height: 600px; /* Original size */
-}
-
 /* ─── SEPARATE STYLES FOR CRANE DASHBOARD ─── */
 
 /* Crane main container */
