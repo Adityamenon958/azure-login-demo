@@ -1,6 +1,6 @@
 .page {
   background:
-    radial-gradient(1200px 420px at -8% -20%, rgba(118, 75, 162, 0.09), transparent 55%),
+    radial-gradient(1200px 420px at 18% -20%, rgba(118, 75, 162, 0.09), transparent 55%),
     radial-gradient(900px 380px at 110% 0%, rgba(13, 115, 119, 0.08), transparent 50%),
     #eef6f8;
   height: calc(100vh - 2.5rem);
@@ -219,6 +219,17 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 0.85rem;
+  align-items: stretch;
+}
+
+.gridSmall .tileWrap {
+  height: 100%;
+  display: flex;
+}
+
+.gridSmall .tile {
+  height: 100%;
+  min-height: 11.5rem;
 }
 
 /* ✅ Bottom half: dashboard cards | feature carousel */
@@ -262,6 +273,8 @@
 
 .tileWrap {
   min-width: 0;
+  height: 100%;
+  display: flex;
 }
 
 .tileWrapActive .tile,
@@ -347,7 +360,7 @@
 }
 
 .tileSmall {
-  min-height: 8.1rem;
+  min-height: 11.5rem;
   padding: 1rem 0.95rem 0.9rem;
 }
 
@@ -404,6 +417,7 @@
   font-size: 0.8rem;
   line-height: 1.45;
   color: #64748b;
+  min-height: 2.32rem; /* ✅ 2 lines so every card is the same height */
 }
 
 .hint {
@@ -413,12 +427,14 @@
   color: #b45309;
 }
 
-.metric {
+.metric,
+.metricSpacer {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
   margin-top: auto;
   padding-top: 0.85rem;
+  min-height: 1.15rem;
   color: #475569;
 }
 

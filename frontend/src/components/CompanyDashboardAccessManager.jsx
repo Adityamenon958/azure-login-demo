@@ -12,7 +12,6 @@ import {
   CreditCard,
   Zap,
   Radio,
-  Bell,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -35,8 +34,7 @@ export default function CompanyDashboardAccessManager() {
     { key: 'trackerOverview', name: 'Fleet Monitor / Fleet Map', icon: Radio, default: false },
     { key: 'craneOverview', name: 'Crane Overview', icon: Truck, default: false },
     { key: 'elevatorOverview', name: 'Elevator Overview', icon: ArrowUpDown, default: false },
-    { key: 'energyOverview', name: 'Energy Overview', icon: Zap, default: false },
-    { key: 'fleetAlarms', name: 'Fleet Alarms', icon: Bell, default: false },
+    { key: 'energyOverview', name: 'Energy Overview (+ Fleet Alarms)', icon: Zap, default: false },
     { key: 'craneDashboard', name: 'Crane Dashboard', icon: Truck, default: false },
     { key: 'addUsers', name: 'Manage Users', icon: Users, default: true },
     { key: 'addDevices', name: 'Manage Device', icon: Shield, default: true },
@@ -52,10 +50,8 @@ export default function CompanyDashboardAccessManager() {
   const normalizeCompanyAccess = (company) => {
     const stored = company?.dashboardAccess || {};
     const merged = { ...defaultDashboardAccess, ...stored };
-    // ✅ Older records had Fleet Alarms tied to Energy — preserve that until superadmin changes it
-    if (stored.fleetAlarms === undefined && stored.energyOverview === true) {
-      merged.fleetAlarms = true;
-    }
+    // ✅ Sub-page access is not independently toggled
+    merged.fleetAlarms = merged.energyOverview === true;
     return merged;
   };
 

@@ -89,7 +89,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           axios.get('/api/check-dashboard-access/craneOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/elevatorOverview', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/energyOverview', { withCredentials: true }),
-          axios.get('/api/check-dashboard-access/fleetAlarms', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addUsers', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/addDevices', { withCredentials: true }),
           axios.get('/api/check-dashboard-access/subscription', { withCredentials: true }),
@@ -102,11 +101,10 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           craneOverview: accessChecks[2].data.hasAccess,
           elevatorOverview: accessChecks[3].data.hasAccess,
           energyOverview: accessChecks[4].data.hasAccess,
-          fleetAlarms: accessChecks[5].data.hasAccess,
-          addUsers: accessChecks[6].data.hasAccess,
-          addDevices: accessChecks[7].data.hasAccess,
-          subscription: accessChecks[8].data.hasAccess,
-          settings: accessChecks[9].data.hasAccess,
+          addUsers: accessChecks[5].data.hasAccess,
+          addDevices: accessChecks[6].data.hasAccess,
+          subscription: accessChecks[7].data.hasAccess,
+          settings: accessChecks[8].data.hasAccess,
         };
 
         setCompanyAccess(access);
@@ -120,7 +118,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           craneOverview: false,
           elevatorOverview: false,
           energyOverview: false,
-          fleetAlarms: false,
           craneDashboard: false,
           addUsers: true,
           addDevices: true,
@@ -309,22 +306,49 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 </>
               ))}
 
-            {/* ✅ Energy Overview */}
+            {/* ✅ Energy Overview — Fleet Alarms nests while inside this section */}
             {(role === 'superadmin' || companyAccess.energyOverview) &&
-              navBtn('/dashboard/energy-overview', null, (
-                <>
-                  <Zap size={ICON} />
-                  <span className={styles.navText}>Energy Overview</span>
-                </>
-              ))}
+              (() => {
+                const onEnergySection =
+                  location.pathname === '/dashboard/energy-overview' ||
+                  location.pathname === '/dashboard/energy-alarms';
+                const onEnergyOverview = location.pathname === '/dashboard/energy-overview';
+                const onFleetAlarms = location.pathname === '/dashboard/energy-alarms';
 
-            {(role === 'superadmin' || companyAccess.fleetAlarms) &&
-              navBtn('/dashboard/energy-alarms', null, (
-                <>
-                  <Bell size={ICON} />
-                  <span className={styles.navText}>Fleet Alarms</span>
-                </>
-              ))}
+                return (
+                  <div className={styles.navGroup}>
+                    <button
+                      type="button"
+                      className={`${styles.iconButton} ${onEnergyOverview ? styles.active : ''}`}
+                      onClick={() => go('/dashboard/energy-overview')}
+                    >
+                      <span className={`${styles.iconButtonInner} ${styles.navParentInner}`}>
+                        <Zap size={ICON} />
+                        <span className={styles.navText}>Energy Overview</span>
+                        {onEnergySection ? (
+                          <ChevronUp size={14} className={styles.navChevron} aria-hidden />
+                        ) : (
+                          <ChevronDown size={14} className={styles.navChevron} aria-hidden />
+                        )}
+                      </span>
+                    </button>
+                    {onEnergySection && (
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.navSubItem} ${
+                          onFleetAlarms ? styles.active : ''
+                        }`}
+                        onClick={() => go('/dashboard/energy-alarms')}
+                      >
+                        <span className={`${styles.iconButtonInner} ${styles.navSubInner}`}>
+                          <Bell size={ICON} />
+                          <span className={styles.navText}>Fleet Alarms</span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
             {/* ✅ Manage Company — Superadmin only */}
             {role === 'superadmin' && (

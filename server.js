@@ -8009,9 +8009,8 @@ const DEFAULT_DASHBOARD_ACCESS = {
 
 function mergeDashboardAccess(stored) {
   const merged = { ...DEFAULT_DASHBOARD_ACCESS, ...(stored || {}) };
-  if (stored && stored.fleetAlarms === undefined && stored.energyOverview === true) {
-    merged.fleetAlarms = true;
-  }
+  // ✅ Fleet Alarms is a sub-page of Energy Overview — always mirror parent access
+  merged.fleetAlarms = merged.energyOverview === true;
   return merged;
 }
 
@@ -8081,10 +8080,16 @@ app.put("/api/company-dashboard-access/:companyName", authenticateToken, async (
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // ✅ Sub-pages follow parent toggles (Fleet Alarms ← Energy Overview)
+    const nextAccess = {
+      ...dashboardAccess,
+      fleetAlarms: dashboardAccess?.energyOverview === true,
+    };
+
     const access = await CompanyDashboardAccess.findOneAndUpdate(
       { companyName },
       { 
-        dashboardAccess,
+        dashboardAccess: nextAccess,
         lastUpdated: new Date(),
         updatedBy: req.user.email
       },

@@ -94,7 +94,7 @@ function App() {
         } />
 
         <Route path="energy-alarms" element={
-          <RouteGuard requiredAccess="fleetAlarms">
+          <RouteGuard requiredAccess="energyOverview">
             <EnergyFleetAlarmSettings />
           </RouteGuard>
         } />

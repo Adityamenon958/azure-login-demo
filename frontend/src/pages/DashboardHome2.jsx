@@ -29,7 +29,6 @@ const ACCESS_KEYS = [
   'craneOverview',
   'elevatorOverview',
   'energyOverview',
-  'fleetAlarms',
   'addUsers',
   'addDevices',
   'subscription',
@@ -114,11 +113,13 @@ function PortalTile({ tile, size, locked, disabled, metric, highlighted, onOpen,
         <h3 className={styles.title}>{tile.title}</h3>
         <p className={styles.description}>{tile.description}</p>
         {disabled && !locked && <span className={styles.hint}>Subscription required</span>}
-        {!isInert && metric && (
+        {!isInert && metric ? (
           <span className={`${styles.metric} ${metricTone}`}>
             <strong>{metric.value}</strong>
             <span>{metric.label}</span>
           </span>
+        ) : (
+          <span className={styles.metricSpacer} aria-hidden />
         )}
       </button>
     </div>

@@ -135,7 +135,8 @@
 
 .navSubItem.active {
   position: relative;
-  background-color: #e8eef0;
+  background-color: #eef6f8;
+  border-bottom-color: #eef6f8;
 }
 
 .navSubItem.active::after {
@@ -145,7 +146,7 @@
   bottom: 0;
   left: 100%;
   width: var(--sidebar-radius-bleed);
-  background-color: #e8eef0;
+  background-color: #eef6f8;
   pointer-events: none;
 }
 
@@ -213,7 +214,8 @@
 .iconButton2:hover,
 .iconButton:focus,
 .iconButton2:focus {
-  background-color: #ebecef;
+  background-color: #eef6f8;
+  border-bottom-color: #eef6f8;
   color: #0f172a;
   outline: none;
   box-shadow: none;
@@ -235,7 +237,8 @@
 .active,
 .active2 {
   position: relative;
-  background-color: #e8eef0;
+  background-color: #eef6f8;
+  border-bottom-color: #eef6f8;
   color: #0d7377;
   border-radius: 0;
   width: 100%;
@@ -251,7 +254,7 @@
   bottom: 0;
   left: 100%;
   width: var(--sidebar-radius-bleed);
-  background-color: #e8eef0;
+  background-color: #eef6f8;
   pointer-events: none;
 }
 

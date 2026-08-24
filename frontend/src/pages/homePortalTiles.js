@@ -106,7 +106,7 @@ export const DASHBOARD_TILES = [
     title: 'Fleet Alarms',
     description: 'Alarm thresholds and fleet alerts.',
     path: '/dashboard/energy-alarms',
-    accessKey: 'fleetAlarms',
+    accessKey: 'energyOverview',
     icon: Bell,
     accent: '#dc2626',
     highlights: [
